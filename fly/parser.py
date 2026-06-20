@@ -1,42 +1,126 @@
-from pyparsing import Word, alphas, alphanums, nums, Optional, Suppress, Group, OneOrMore, ParseException, one_of, pythonStyleComment
-import pyparsing as parser
-import pyparsing
+from pyparsing import (Suppress, one_of, alphanums, Optional, ParseException,
+                       Word, printables, nums, ZeroOrMore)
 
-# ser_parse_action()
+# tokens
+NAME = Word(printables, exclude_chars=" -")
+INTEGER = Word(nums)
 
-NB_DRONES = Suppress("nb_drones") - Suppress(":") - Word(nums)("nb_drones")
+# nb drones
+NB_DRONES = (Suppress("nb_drones") + Suppress(":") + INTEGER("count"))
 
-ZONE = Suppress("zone") - Suppress("=") - one_of(["restricted", "normal", "blocked", "priority"])("zone")
-COLOR = Suppress("color") - Suppress("=") - Word(alphas)("color")
-MAX_DRONES = Suppress("max_drones") - Suppress("=") - Word(nums)("max_drones")
+# HUB BASIC
+HUB_BASIC = (NAME("name") + INTEGER("x") + INTEGER("y"))
+# ZONE METADATA
+ZONE = (Suppress("zone") + Suppress("=") +
+        one_of("restricted normal blocked priority")("zone"))
+# COLOR METADATA
+COLOR = (Suppress("color") + Suppress("=") + Word(alphanums)("color"))
+# MAX_DRONES
+MAX_DRONES = (Suppress("max_drones") + Suppress("=") + INTEGER("max_drones"))
 
-GLOBAL_META_DATA = Suppress("[") - (Optional(ZONE) & Optional(COLOR) & Optional(MAX_DRONES)) - Suppress("]")
+# ALL META_DATA
+METADATA = (Suppress("[") + ZeroOrMore(ZONE | COLOR | MAX_DRONES)
+            + Suppress("]"))
 
-SPECIAL_META_DATA = Suppress("[") - Suppress("color") - Suppress("=") - Word(alphas)("color") - Suppress("]")
+# HUB COMPLETE
+HUB = (Suppress("hub") + Suppress(":") + HUB_BASIC + Optional(METADATA))
 
-GLOBAL_HUB = Word(alphanums)("hub_name") - Word(nums)("x") - Word(nums)("y") 
+# START_HUB
+START_HUB = (Suppress("start_hub") + Suppress(":") + HUB_BASIC
+             + Optional(METADATA))
 
+# END_HUB
+END_HUB = (Suppress("end_hub") + Suppress(":") + HUB_BASIC
+           + Optional(METADATA))
 
-SPECIAL_HUB = Suppress(":") - GLOBAL_HUB - Optional(SPECIAL_META_DATA)
+# CONNECTION METADATA
+MAX_LINK_CAPACITY = (Suppress("max_link_capacity") + Suppress("=")
+                     + INTEGER("max_link_capacity"))
 
-HUB = Group(Suppress("hub") - Suppress(":") - GLOBAL_HUB - Optional(GLOBAL_META_DATA))
-END_HUB = Group(Suppress("end_hub") - SPECIAL_HUB)("end_hub")
-START_HUB = Group(Suppress("start_hub") - SPECIAL_HUB)("start_hub")  
-CONNECTION_META_DATA = Suppress("[") - Suppress("max_link_capacity") - Suppress("=") - Word(nums)("max_link_capacity") - Suppress("]")
-CONNECTION = Group(Suppress("connection") - Suppress(":") - Word(alphanums)("first_link") - Suppress("-") - Word(alphanums)("second_link") - Optional(CONNECTION_META_DATA))
+CONNECTION_METADATA = (Suppress("[") + MAX_LINK_CAPACITY + Suppress("]"))
 
-rules = NB_DRONES - (
-    END_HUB &
-    START_HUB &
-    Group(OneOrMore(HUB))("liste_hubs") &
-    Group(OneOrMore(CONNECTION))("liste_connections")
-)
-rules.ignore(pythonStyleComment)
+# CONNECTION COMPLETE
+CONNECTION = (Suppress("connection") + Suppress(":") + NAME("from_zone") +
+              Suppress("-") + NAME("to_zone") + Optional(CONNECTION_METADATA))
+
+# STORAGE
+hubs = []
+connections = []
+start_hub = None
+end_hub = None
+nb_drones = None
+# PARSING
+with open("map.txt") as f:
+    for line in f:
+
+        line = line.split("#")[0].strip()
+        if not line:
+            continue
+
+        try:
+            if line.startswith("nb_drones"):
+                nb_drones = NB_DRONES.parse_string(line)["count"]
+
+            elif line.startswith("start_hub"):
+                start_hub = START_HUB.parse_string(line)
+
+            elif line.startswith("end_hub"):
+                end_hub = END_HUB.parse_string(line)
+
+            elif line.startswith("hub"):
+                hubs.append(HUB.parse_string(line))
+
+            elif line.startswith("connection"):
+                connections.append(CONNECTION.parse_string(line))
+
+            else:
+                raise ValueError("Unknown line")
+
+        except ParseException as e:
+            print("ERROR in line:", line)
+            print(e)
+            exit(1)
+
 
 try:
-    resultat = rules.parse_file("config", parse_all=True)
-    for cle, valeur in resultat.asDict().items():
-        print(f"{cle}: {valeur}")
+    if start_hub is None:
+        raise ValueError("Missing required field: start_hub")
 
-except (ParseException, pyparsing.exceptions.ParseBaseException) as e:
-    print(e.explain())
+    if end_hub is None:
+        raise ValueError("Missing required field: end_hub")
+
+    if nb_drones is None:
+        raise ValueError("Missing required field: nb_drones")
+except Exception as e:
+    print(e)
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
