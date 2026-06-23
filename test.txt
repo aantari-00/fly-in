@@ -1,0 +1,27 @@
+python3 main.py
+{'count': 5,
+'start_hub': [{'name': 'hub', 'x': 0, 'y': 0, 'color': 'green'}],
+'end_hub': [{'name': 'goal', 'x': 10, 'y': 10, 'color': 'yellow'}],
+'Hubs': [{'name': 'roof1', 'x': 3, 'y': 4, 'zone': 'restricted', 'color': 'red'},
+         {'name': 'roof2', 'x': 6, 'y': 2, 'zone': 'normal', 'color': 'blue'}, 
+         {'name': 'corridorA', 'x': 4, 'y': 3, 'zone': 'priority', 'color': 'green', 'max_drones': 2}, 
+         {'name': 'tunnelB', 'x': 7, 'y': 4, 'zone': 'normal', 'color': 'red'}, 
+         {'name': 'obstacleX', 'x': 5, 'y': 5, 'zone': 'blocked', 'color': 'gray'}], 
+'Connections': [{'from_zone': 'hub', 'to_zone': 'roof1'}, {'from_zone': 'hub', 'to_zone': 'corridorA'}, 
+         {'from_zone': 'roof1', 'to_zone': 'roof2'}, {'from_zone': 'roof2', 'to_zone': 'goal'}, 
+         {'from_zone': 'corridorA', 'to_zone': 'tunnelB', 'max_link_capacity': 2}, 
+         {'from_zone': 'tunnelB', 'to_zone': 'goal'}]}
+
+
+
+
+
+
+{'hub': ['roof1', 'corridorA'], 
+'goal': ['roof2', 'tunnelB'], 
+'roof1': ['hub', 'roof2'], 
+'roof2': ['roof1', 'goal'], 
+'corridorA': ['hub', 'tunnelB'], 
+'tunnelB': ['corridorA', 'goal'], 
+'obstacleX': []}
+ 
