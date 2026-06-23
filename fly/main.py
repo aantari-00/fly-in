@@ -4,7 +4,7 @@ from parser import parse_map
 def main():
     data = parse_map("map.txt")
 
-    print(data)
+    print(data["Hubs"])
 
 
 if __name__ == "__main__":

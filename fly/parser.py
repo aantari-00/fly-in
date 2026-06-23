@@ -67,7 +67,8 @@ def save_connection(text, loc, tokens):
 
     connection = Connection(hub1, hub2)
     if hub1 == hub2:
-        raise pyparsing.ParseFatalException(text, loc, tokens)
+        raise pyparsing.ParseFatalException(text, loc, "Error: self" 
+                                            f"connection '{hub1}-{hub2}'!")
 
     if connection in connections:
         raise pyparsing.ParseFatalException(
@@ -169,7 +170,9 @@ rules.ignore(pythonStyleComment)
 
 def parse_map(filename: str):
     try:
-        result = rules.parse_file("map.txt", parse_all=True)
+        hubs.clear()
+        connections.clear()
+        result = rules.parse_file(filename, parse_all=True)
         res = result.as_dict()
         if len(res.get("start_hub", [])) != 1:
             raise pyparsing.ParseFatalException(
@@ -177,6 +180,7 @@ def parse_map(filename: str):
         if len(res.get("end_hub", [])) != 1:
             raise pyparsing.ParseFatalException(
                 "logical Error: expected one end_hub !")
-        print("parsing ok")
+        return res
     except (ParseException, pyparsing.exceptions.ParseBaseException) as e:
         print(e.explain())
+        return None

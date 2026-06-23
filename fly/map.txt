@@ -6,7 +6,7 @@ hub: roof2 6 2 [zone=normal color=blue]
 hub: corridorA 4 3 [zone=priority color=green max_drones=2]
 hub: tunnelB 7 4 [zone=normal color=red]
 hub: obstacleX 5 5 [zone=blocked color=gray]
-connection: hub-hub
+connection: hub-roof1
 connection: hub-corridorA
 connection: roof1-roof2
 connection: roof2-goal
