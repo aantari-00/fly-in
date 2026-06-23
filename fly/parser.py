@@ -1,6 +1,6 @@
 from pyparsing import (
-    Word, alphas, nums, Optional,
-    Suppress, Group, OneOrMore, ParseException,
+    Word, alphas, Optional,
+    Suppress, Group, OneOrMore, ParseException, pyparsing_common,
     one_of, pythonStyleComment
 )
 import pyparsing
@@ -13,8 +13,6 @@ class Connection:
         self.max_connections = max_connections
 
     def __eq__(self, value):
-        if not isinstance(value, Connection):
-            return NotImplemented
         return (
             (self.hub1 == value.hub2 and self.hub2 == value.hub1)
             or
@@ -24,9 +22,6 @@ class Connection:
     def __hash__(self):
         return hash(frozenset([self.hub1, self.hub2]))
 
-    def __str__(self):
-        return f"{self.hub1}-{self.hub2}"
-
 
 class Hub:
     def __init__(self, name, x, y):
@@ -35,14 +30,10 @@ class Hub:
         self.y = y
 
     def __eq__(self, value):
-        return (
-            self.name == value.name
-            or
-            (self.x == value.x and self.y == value.y)
-        )
+        return self.name == value.name
 
     def __hash__(self):
-        return hash((self.name, self.x, self.y))
+        return hash((self.name))
 
 
 connections = set()
@@ -59,11 +50,9 @@ def save_hub(text, loc, tokens):
     hub = Hub(name, x, y)
 
     if hub in hubs:
-        raise pyparsing.ParseFatalException(
-            text,
-            loc,
-            f"Error: repeated hub '{name}' ({x}, {y})!"
-        )
+        raise pyparsing.ParseFatalException(text, loc,
+                                            f"Error: repeated hub '{name}'"
+                                            f" ({x}, {y})!")
 
     hubs.add(hub)
 
@@ -77,6 +66,8 @@ def save_connection(text, loc, tokens):
     hubs_name = [hub.name for hub in hubs]
 
     connection = Connection(hub1, hub2)
+    if hub1 == hub2:
+        raise pyparsing.ParseFatalException(text, loc, tokens)
 
     if connection in connections:
         raise pyparsing.ParseFatalException(
@@ -104,67 +95,88 @@ def save_connection(text, loc, tokens):
 
 # TOKENS
 NAME = Word(pyparsing.printables, exclude_chars=" -")
-INTEGER = Word(nums)
+POS_INT = pyparsing_common.integer
+SIGNED_INT = pyparsing_common.signed_integer
 
 # NB_DRONES
-NB_DRONES = (Suppress("nb_drones") + Suppress(":") + INTEGER("count"))
+NB_DRONES = (Suppress("nb_drones") + Suppress(":") + POS_INT("count"))
+NB_DRONES.add_condition(
+    lambda tokens: int(tokens.get("count")) > 0,
+    message="Logical Error: The number of drones must be greater than 0!",
+    fatal=True
+)
 
 # HUB BASIC
-HUB_BASIC = (NAME("name") + INTEGER("x") + INTEGER("y"))
+HUB_BASIC = (NAME("name") + SIGNED_INT("x") + SIGNED_INT("y"))
 
 # METADATA
 ZONE = (Suppress("zone") + Suppress("=") +
         one_of("restricted normal blocked priority")("zone"))
-
 COLOR = (Suppress("color") + Suppress("=") + Word(alphas)("color"))
-
-MAX_DRONES = (Suppress("max_drones") + Suppress("=") + INTEGER("max_drones"))
-
+MAX_DRONES = (Suppress("max_drones") +
+              Suppress("=") + POS_INT("max_drones"))
+MAX_DRONES.add_condition(
+    lambda tokens: int(tokens.get("max_drones")) > 0,
+    message="Logical Error: The number of max_drones "
+    "must be greater than 0!",
+    fatal=True
+)
 METADATA = (Suppress("[") + (Optional(ZONE) & Optional(COLOR) &
                              Optional(MAX_DRONES)) + Suppress("]"))
 
 # HUB
-HUB = Group(Suppress("hub") + Suppress(":") + HUB_BASIC + Optional(METADATA))
+HUB = Group(Suppress("hub") + Suppress(":")
+            + HUB_BASIC + Optional(METADATA))("hub").set_results_name(
+                "Hubs", list_all_matches=True)
 HUB.set_parse_action(save_hub)
 
 # START_HUB
 START_HUB = Group(Suppress("start_hub") + Suppress(":")
-                  + HUB_BASIC + Optional(METADATA))("start_hub")
+                  + HUB_BASIC + Optional(METADATA)).set_results_name(
+                      "start_hub", list_all_matches=True)
 START_HUB.set_parse_action(save_hub)
 
-# END_HUB
+#  END_HUB
 END_HUB = Group(Suppress("end_hub") + Suppress(":") + HUB_BASIC
-                + Optional(METADATA))("end_hub")
+                + Optional(METADATA)).set_results_name(
+                    "end_hub", list_all_matches=True)
 END_HUB.set_parse_action(save_hub)
 
 # CONNECTION METADATA
 MAX_LINK_CAPACITY = (Suppress("max_link_capacity") + Suppress("=")
-                     + INTEGER("max_link_capacity"))
-
+                     + POS_INT("max_link_capacity"))
+MAX_LINK_CAPACITY.add_condition(
+    lambda tokens: int(tokens.get("max_link_capacity")) > 0,
+    message="Logical Error: The number of max_link_capacity"
+    "must be greater than 0!",
+    fatal=True
+)
 CONNECTION_METADATA = (Suppress("[") + MAX_LINK_CAPACITY + Suppress("]"))
 
 # CONNECTION
-CONNECTION = Group(Suppress("connection") + Suppress(":") + NAME("from_zone")
+CONNECTION = Group(Suppress("connection")
+                   + Suppress(":") + NAME("from_zone")
                    + Suppress("-") + NAME("to_zone")
-                   + Optional(CONNECTION_METADATA))
+                   + Optional(CONNECTION_METADATA)).set_results_name(
+                       "Connections", list_all_matches=True)
 CONNECTION.set_parse_action(save_connection)
+STATEMENTS = (END_HUB | START_HUB | HUB | CONNECTION)
 
 # GLOBAL RULES
-rules = (NB_DRONES - (END_HUB & START_HUB &
-                      Group(OneOrMore(HUB))("liste_hubs") &
-                      Group(OneOrMore(CONNECTION))("liste_connections")))
-
+rules = (NB_DRONES - OneOrMore(STATEMENTS))
 rules.ignore(pythonStyleComment)
 
-try:
-    import sys
 
-    result = rules.parse_file(sys.argv[1], parse_all=True)
-
-    for key, value in result.asDict().items():
-        print(f"{key}: {value}")
-
-    print(*connections)
-
-except (ParseException, pyparsing.exceptions.ParseBaseException) as e:
-    print(e.explain())
+def parse_map(filename: str):
+    try:
+        result = rules.parse_file("map.txt", parse_all=True)
+        res = result.as_dict()
+        if len(res.get("start_hub", [])) != 1:
+            raise pyparsing.ParseFatalException(
+                "logical Error: expected one start_hub !")
+        if len(res.get("end_hub", [])) != 1:
+            raise pyparsing.ParseFatalException(
+                "logical Error: expected one end_hub !")
+        print("parsing ok")
+    except (ParseException, pyparsing.exceptions.ParseBaseException) as e:
+        print(e.explain())

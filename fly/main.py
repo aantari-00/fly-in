@@ -1,11 +1,10 @@
-import sys
-from parser import Parser
+from parser import parse_map
 
 
 def main():
-    file_path = sys.argv[1]
-    parser = Parser(file_path)
-    print(parser.filename)
+    data = parse_map("map.txt")
+
+    print(data)
 
 
 if __name__ == "__main__":
