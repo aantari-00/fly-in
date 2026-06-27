@@ -17,11 +17,22 @@ python3 main.py
 
 
 
-{'hub': ['roof1', 'corridorA'], 
-'goal': ['roof2', 'tunnelB'], 
-'roof1': ['hub', 'roof2'], 
-'roof2': ['roof1', 'goal'], 
-'corridorA': ['hub', 'tunnelB'], 
-'tunnelB': ['corridorA', 'goal'], 
+
+
+{'start': [], end : [] , name : []}
+
+
+
+{'hub': [{'to': 'roof1', 'cost': 2, 'capacity': 1},
+         {'to': 'corridorA', 'cost': 2, 'capacity': 1}],
+'goal': [{'to': 'roof2', 'cost': 2, 'capacity': 1},
+        {'to': 'tunnelB', 'cost': 2, 'capacity': 1}],
+'roof1': [{'to': 'hub', 'cost': 2, 'capacity': 1},
+        {'to': 'roof2', 'cost': 2, 'capacity': 1}],
+'roof2': [{'to': 'roof1', 'cost': 2, 'capacity': 1},
+        {'to': 'goal', 'cost': 2, 'capacity': 1}],
+'corridorA': [{'to': 'hub', 'cost': 2, 'capacity': 1},
+        {'to': 'tunnelB', 'cost': 2, 'capacity': 2}],
+'tunnelB': [{'to': 'corridorA', 'cost': 2, 'capacity': 2},
+        {'to': 'goal', 'cost': 2, 'capacity': 1}],
 'obstacleX': []}
- 
