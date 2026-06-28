@@ -36,3 +36,12 @@ python3 main.py
 'tunnelB': [{'to': 'corridorA', 'cost': 2, 'capacity': 2},
         {'to': 'goal', 'cost': 2, 'capacity': 1}],
 'obstacleX': []}
+
+
+
+
+distance = {
+    "start": 0,
+    "A": 2,
+    "B": 5
+}
