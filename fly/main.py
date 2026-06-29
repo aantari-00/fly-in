@@ -8,8 +8,7 @@ def main():
     graph = Graph(data)
     dijkstra = Dijkstra(graph)
     path, cost = dijkstra.get_path()
-    print(path)
-    print(cost)
+    print(f"\nshort path {path} \ncost {cost}")
 
 
 if __name__ == "__main__":
