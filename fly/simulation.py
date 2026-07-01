@@ -6,8 +6,10 @@ class Simulation:
         self.occupied_hubs = {}
 
     def can_move(self, current_hub, next_hub):
-        pass
-    
+        if next_hub is None:
+            return False
+        
+
     def run(self):
         for drone in self.drones:
             if drone.finished:
