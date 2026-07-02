@@ -1,0 +1,14 @@
+self.in_transit = {
+    1: {
+        "target": "A",
+        "turns_left": 2,
+        "link": ("start", "A")
+    }
+}
+
+
+
+self.in_transit = {
+    1: {"target": "hall", "turns_left": 1, "link": ("gate", "hall")},
+    2: {"target": "vault", "turns_left": 2, "link": ("gate", "vault")},
+}

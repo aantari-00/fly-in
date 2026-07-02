@@ -36,6 +36,20 @@ class Graph:
             return None
         return 1
 
+    def get_capacity(self, name):
+        if name == self.start or name == self.end:
+            return float('inf')
+        for hub in self.hubs:
+            if hub["name"] == name:
+                return hub.get("max_drones", 1)
+        return 1
+
+    def get_link_capacity(self, hub1, hub2):
+        for neighbor in self.adjacency[hub1]:
+            if neighbor["to"] == hub2:
+                return neighbor["capacity"]
+        return 1
+
     def build_adj(self):
         adj = {}
 
