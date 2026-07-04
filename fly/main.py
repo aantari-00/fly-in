@@ -30,7 +30,11 @@ def main():
 
     # simulation
     simulation = Simulation(graph, drones)
-    turns = simulation.run()
+    try:
+        turns = simulation.run()
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        return
     i = 1
     for turn_moves in turns:
         print(f"turn{i}: "+" ".join(turn_moves))

@@ -75,7 +75,7 @@ class Simulation:
             turn_moves.append(f"D{drone.drone_id}-{current}-{next_hub}")
 
     def run(self):
-        max_turns = len(self.graph.adjacency) * len(self.drones) * 4 + 10
+        max_turns = len(self.graph.adjacency) * len(self.drones) * 10
 
         while not all(drone.finished for drone in self.drones):
             turn_moves = []
