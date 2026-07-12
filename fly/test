@@ -1,0 +1,44 @@
+self.graph.adjacency = {
+    "Start": [
+        {"to": "A", "cost": 1, "capacity": 1}
+    ],
+
+    "A": [
+        {"to": "Start", "cost": 1, "capacity": 1},
+        {"to": "B", "cost": 1, "capacity": 1}
+    ],
+
+    "B": [
+        {"to": "A", "cost": 1, "capacity": 1},
+        {"to": "End", "cost": 1, "capacity": 1}
+    ],
+
+    "End": [
+        {"to": "B", "cost": 1, "capacity": 1}
+    ]
+}
+removed = self.graph.remove_edge("A", "B")
+
+
+
+removed = [
+
+    (
+        "A",
+        {
+            "to": "B",
+            "cost": 1,
+            "capacity": 1
+        }
+    ),
+
+    (
+        "B",
+        {
+            "to": "A",
+            "cost": 1,
+            "capacity": 1
+        }
+    )
+
+]

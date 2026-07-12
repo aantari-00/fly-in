@@ -101,3 +101,20 @@ class Graph:
     def restore_edge(self, removed):
         for hub, entry in removed:
             self.adjacency[hub].append(entry)
+
+    def romove_node(self, hub):
+        removed = []
+
+        if hub not in self.adjacency:
+            return removed
+
+        for current in list(self.adjacency):
+            for entry in list(self.adjacency[current]):
+                if entry["to"] == hub:
+                    self.adjacency[current].remove(entry)
+                    removed.append((current, entry))
+        return removed
+
+        def restore_node(self, removed):
+            ...
+

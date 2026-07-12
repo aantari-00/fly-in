@@ -35,32 +35,32 @@ class Router:
             candidates.sort(key=lambda x: x[1])
             accepted.append(candidates.pop(0))
 
-                         
-def block_known_edges(self, accepted, root_path, spur_index):
+    def block_known_edges(self, accepted, root_path, spur_index):
 
-    removed = []
+        removed = []
 
-    for path, _ in accepted:
+        for path, _ in accepted:
 
-        if path[:spur_index + 1] == root_path:
+            if path[:spur_index + 1] == root_path:
 
-            if len(path) > spur_index + 1:
+                if len(path) > spur_index + 1:
 
-                hub1 = path[spur_index]
-                hub2 = path[spur_index + 1]
+                    hub1 = path[spur_index]
+                    hub2 = path[spur_index + 1]
 
-                removed += self.graph.remove_edge(hub1, hub2)
+                    removed += self.graph.remove_edge(hub1, hub2)
 
-    return removed 
+        return removed
 
     def restore_known_edges(self, removed):
-        ...
+        self.graph.restore_edge(removed)
 
     def block_root_nodes(self, root_path):
-        ...
-
+        for hub in root_path[:-1]:
+            
+    
     def restore_root_nodes(self, removed_nodes):
-        ...
+        
 
     def add_candidate(self, candidates, accepted, path, cost):
         pass
