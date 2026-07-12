@@ -1,9 +1,9 @@
 from parser import parse_map
 from graph import Graph
-from dijkstra import Dijkstra
+
 from drone import Drone
 from simulation import Simulation
-
+from Router import Router
 
 def main():
     # parsing
@@ -16,13 +16,13 @@ def main():
     graph = Graph(data)
 
     # algo
-    dijkstra = Dijkstra(graph)
-    result = dijkstra.get_path()
-    if result is None:
+    router = Router(graph)
+    paths = router.find_paths()
+    if not paths:
         print("Error: no path found between start and end.")
         return
-    path, cost = result
-
+    path, cost = paths[0]
+    print(path)
     # drones
     drones = []
     for i in range(graph.nb_drones):

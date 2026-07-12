@@ -83,3 +83,21 @@ class Graph:
             })
 
         return adj
+
+    def remove_edge(self, hub1, hub2):
+        removed = []
+        for entry in list(self.adjacency[hub1]):
+            if entry["to"] == hub2:
+                self.adjacency[hub1].remove(entry)
+                removed.append((hub1, entry))
+
+        for entry in list(self.adjacency[hub2]):
+            if entry["to"] == hub1:
+                self.adjacency[hub2].remove(entry)
+                removed.append((hub2, entry))
+
+        return removed
+
+    def restore_edge(self, removed):
+        for hub, entry in removed:
+            self.adjacency[hub].append(entry)
