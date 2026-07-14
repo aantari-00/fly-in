@@ -56,11 +56,15 @@ class Router:
         self.graph.restore_edge(removed)
 
     def block_root_nodes(self, root_path):
+        removed_nodes = []
         for hub in root_path[:-1]:
-            
-    
+            removed = self.graph.removed_node(hub)
+            removed_nodes.append(removed)
+        return removed_nodes
+
     def restore_root_nodes(self, removed_nodes):
-        
+        for removed in reversed(removed_nodes):
+            self.graph.restore_node(removed_nodes)
 
     def add_candidate(self, candidates, accepted, path, cost):
         pass

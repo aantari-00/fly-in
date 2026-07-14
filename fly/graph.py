@@ -103,18 +103,26 @@ class Graph:
             self.adjacency[hub].append(entry)
 
     def romove_node(self, hub):
-        removed = []
+        removed = {
+            "node": None,
+            "edges": []
+        }
 
         if hub not in self.adjacency:
             return removed
 
+        removed["node"] = (hub, self.adjacency.pop(hub))
         for current in list(self.adjacency):
             for entry in list(self.adjacency[current]):
                 if entry["to"] == hub:
                     self.adjacency[current].remove(entry)
-                    removed.append((current, entry))
+                    removed["edges"].append((current, entry))
         return removed
 
-        def restore_node(self, removed):
-            ...
+    def restore_node(self, removed):
+        hub, adjacency = removed["node"]
 
+        self.adjacency[hub] = adjacency
+
+        for current, entry in removed["edges"]:
+            self.adjacency[current].append(entry)
