@@ -1,44 +1,30 @@
 from parser import parse_map
 from graph import Graph
-
-from drone import Drone
-from simulation import Simulation
 from Router import Router
 
+
 def main():
-    # parsing
     data = parse_map("map.txt")
+
     if data is None:
-        print("Error: could not parse the map file.")
+        print("Error: could not parse the map.")
         return
 
-    # graph
     graph = Graph(data)
 
-    # algo
     router = Router(graph)
     paths = router.find_paths()
-    if not paths:
-        print("Error: no path found between start and end.")
-        return
-    path, cost = paths[0]
-    print(path)
-    # drones
-    drones = []
-    for i in range(graph.nb_drones):
-        drones.append(Drone(i + 1, path))
 
-    # simulation
-    simulation = Simulation(graph, drones)
-    try:
-        turns = simulation.run()
-    except RuntimeError as e:
-        print(f"Error: {e}")
+    if not paths:
+        print("No path found.")
         return
-    i = 1
-    for turn_moves in turns:
-        print(f"turn{i}: "+" ".join(turn_moves))
-        i += 1
+
+    print(f"Found {len(paths)} path(s):\n")
+
+    for i, (path, cost) in enumerate(paths, start=1):
+        print(f"Path {i}: {' -> '.join(path)}")
+        print(f"Cost: {cost}")
+        print()
 
 
 if __name__ == "__main__":

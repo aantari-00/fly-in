@@ -102,7 +102,7 @@ class Graph:
         for hub, entry in removed:
             self.adjacency[hub].append(entry)
 
-    def romove_node(self, hub):
+    def remove_node(self, hub):
         removed = {
             "node": None,
             "edges": []
@@ -126,3 +126,10 @@ class Graph:
 
         for current, entry in removed["edges"]:
             self.adjacency[current].append(entry)
+
+    def path_cost(self, path):
+        cost = 0
+
+        for hub in path[1:]:
+            cost += self.get_cost(hub)
+        return cost

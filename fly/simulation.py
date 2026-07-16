@@ -101,4 +101,3 @@ class Simulation:
                     "the map might be deadlocked")
 
         return self.turns
-
