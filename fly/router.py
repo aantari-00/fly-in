@@ -1,4 +1,5 @@
 from dijkstra import Dijkstra
+from drone import Drone
 
 
 class Router:
@@ -73,15 +74,25 @@ class Router:
             self.graph.restore_node(removed)
 
     def add_candidate(self, candidates, accepted, path, cost):
-        if path is None:
-            return
-
         for accepted_path, _ in accepted:
             if accepted_path == path:
                 return
-
         for candidate_path, _ in candidates:
             if candidate_path == path:
                 return
 
         candidates.append((path, cost))
+
+    def assign_drones(self, paths, nb_drones):
+        loads = [0] * len(paths)
+        drones = []
+
+        for drone_id in range(1, nb_drones + 1):
+            best = min(range(len(paths)), key=lambda i: paths[i][1] + loads[i])
+
+            path, _ = paths[best]
+            drones.append(Drone(drone_id, path))
+
+            loads[best] += 1
+
+        return drones

@@ -33,10 +33,9 @@ class Simulation:
 
             info = self.in_transit[drone.drone_id]
             info["turns_left"] -= 1
-
             if info["turns_left"] == 0:
                 drone.move()
-                turn_moves.append(f"D{drone.drone_id}-{info['target']}")
+                turn_moves.append(f"D{drone.drone_id}->{info['target']}")
                 del self.in_transit[drone.drone_id]
                 landed.add(drone.drone_id)
 
@@ -73,6 +72,9 @@ class Simulation:
                 "link": link,
             }
             turn_moves.append(f"D{drone.drone_id}-{current}-{next_hub}")
+
+    def get_ready_drones(self):
+        pass
 
     def run(self):
         max_turns = len(self.graph.adjacency) * len(self.drones) * 10
