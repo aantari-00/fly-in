@@ -74,26 +74,32 @@ class Simulation:
             turn_moves.append(f"D{drone.drone_id}-{current}-{next_hub}")
 
     def get_ready_drones(self):
-        pass
+        ready = []
+        for drone in self.drones:
+            if drone.finished:
+                continue
+            if drone.drone_id in self.in_transit:
+                continue
+            ready.append(drone)
+        ready.sort(key=lambda d: d.path_index, reverse=True)
+        return ready
 
     def run(self):
         max_turns = len(self.graph.adjacency) * len(self.drones) * 10
 
         while not all(drone.finished for drone in self.drones):
             turn_moves = []
-
+            landed = self.resolve_arrivals(turn_moves)
             zone_occupancy = self.zone_occupancy()
             link_occupancy = self.link_occupancy()
 
-            landed = self.resolve_arrivals(turn_moves)
-
-            for drone in self.drones:
+            for drone in self.get_ready_drones():
                 if drone.finished or drone.drone_id in self.in_transit:
                     continue
                 if drone.drone_id in landed:
                     continue
-                self.try_move(
-                    drone, zone_occupancy, link_occupancy, turn_moves)
+                self.try_move(drone, zone_occupancy, link_occupancy,
+                              turn_moves)
 
             self.turns.append(turn_moves)
 

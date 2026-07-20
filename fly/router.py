@@ -8,7 +8,7 @@ class Router:
         self.graph = graph
         self.dijkstra = Dijkstra(graph)
 
-    def find_paths(self, max_path=10):
+    def find_paths(self, max_path=20):
         first = self.dijkstra.get_path()
         if first is None:
             return []
