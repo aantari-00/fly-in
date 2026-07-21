@@ -62,6 +62,8 @@ class Simulation:
         zone_occupancy[next_hub] = zone_occupancy.get(next_hub, 0) + 1
         link_occupancy[link] = link_occupancy.get(link, 0) + 1
 
+        zone_occupancy[current] = zone_occupancy.get(current, 1) - 1
+
         if cost == 1:
             drone.move()
             turn_moves.append(f"D{drone.drone_id}-{next_hub}")
@@ -73,15 +75,23 @@ class Simulation:
             }
             turn_moves.append(f"D{drone.drone_id}-{current}-{next_hub}")
 
-    def get_ready_drones(self):
-        ready = []
-        for drone in self.drones:
-            if drone.finished:
-                continue
-            if drone.drone_id in self.in_transit:
-                continue
-            ready.append(drone)
-        ready.sort(key=lambda d: d.path_index, reverse=True)
+    def get_ready_drones(self, landed):
+
+        ready = [
+            drone
+            for drone in self.drones
+            if not drone.finished
+            and drone.drone_id not in self.in_transit
+            and drone.drone_id not in landed
+        ]
+
+        def remaining_cost(drone):
+            index = drone.path_index + 1
+            remaining_hubs = drone.path[index:]
+            return sum(self.graph.get_cost(hub) for hub in remaining_hubs)
+
+        ready.sort(key=remaining_cost)
+
         return ready
 
     def run(self):
@@ -89,23 +99,20 @@ class Simulation:
 
         while not all(drone.finished for drone in self.drones):
             turn_moves = []
+
             landed = self.resolve_arrivals(turn_moves)
             zone_occupancy = self.zone_occupancy()
             link_occupancy = self.link_occupancy()
 
-            for drone in self.get_ready_drones():
-                if drone.finished or drone.drone_id in self.in_transit:
-                    continue
-                if drone.drone_id in landed:
-                    continue
+            for drone in self.get_ready_drones(landed):
                 self.try_move(drone, zone_occupancy, link_occupancy,
                               turn_moves)
-
             self.turns.append(turn_moves)
 
             if len(self.turns) > max_turns:
                 raise RuntimeError(
                     "Simulation exceeded the maximum number of turns, "
-                    "the map might be deadlocked")
+                    "the map might be deadlocked"
+                )
 
         return self.turns

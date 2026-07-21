@@ -1,8 +1,8 @@
 from parser import parse_map
 from graph import Graph
 from router import Router
-from drone import Drone
 from simulation import Simulation
+from visualization import visualize
 
 
 def main():
@@ -17,7 +17,7 @@ def main():
     router = Router(graph)
     # path
     paths = router.find_paths()
-
+    print(len(paths))
     if not paths:
         print("No path found")
         return
@@ -28,6 +28,8 @@ def main():
 
     for i, turn in enumerate(turns, start=1):
         print(f"Turn {i}: {' '.join(turn)}")
+    visualize(graph, drones, turns, use_pygame=True, delay=0.3)
+    return
 
 
 if __name__ == "__main__":

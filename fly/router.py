@@ -39,8 +39,11 @@ class Router:
 
             candidates.sort(key=lambda x: x[1])
             accepted.append(candidates.pop(0))
+        path_cost = [(path, cost) for path, cost in accepted if cost == first[1]]
+        if not path_cost:
+            return accepted
 
-        return accepted
+        return path_cost or accepted
 
     def block_known_edges(self, accepted, root_path, spur_index):
 
