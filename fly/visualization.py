@@ -1,618 +1,494 @@
-import os
-import time
 import math
 
+import pygame
 
-class VisualizationError(RuntimeError):
-    """Raised when the visualization layer cannot render a frame."""
-
-
-def parse_turn_move(move):
-    parts = move.split("-")
-    if not parts or not parts[0].startswith("D"):
-        return None
-
-    try:
-        drone_id = int(parts[0][1:])
-    except ValueError:
-        return None
-
-    target = parts[-1] if len(parts) >= 2 else None
-    return drone_id, target
-
-
-def build_animation_frames(graph, drones, turns):
-    positions = {}
-    for drone in drones:
-        path = getattr(drone, "path", None) or []
-        positions[drone.drone_id] = path[0] if path else None
-
-    frames = []
-    for turn_number, turn_moves in enumerate(turns, start=1):
-        next_positions = dict(positions)
-        for move in turn_moves:
-            parsed = parse_turn_move(move)
-            if parsed is None:
-                continue
-            drone_id, target = parsed
-            if target is None:
-                continue
-            next_positions[drone_id] = target
-
-        positions = next_positions
-        frames.append({
-            "turn": turn_number,
-            "moves": list(turn_moves),
-            "positions": dict(positions),
-        })
-
-    return frames
-
-
-def render_text_frame(frame):
-    lines = [f"Turn {frame['turn']}"]
-    if frame["moves"]:
-        lines.append("Moves: " + ", ".join(frame["moves"]))
-    else:
-        lines.append("Moves: none")
-
-    for drone_id in sorted(frame["positions"]):
-        hub = frame["positions"][drone_id]
-        lines.append(f"  D{drone_id} -> {hub}")
-
-    return "\n".join(lines)
-
-
-def visualize(graph, drones, turns, *, use_pygame=False, delay=0.3,
-              clear_screen=True):
-    """Entry point used by ``main.py``.
-
-    Only the *rendering* backend is chosen here. Whatever backend is used,
-    it only reads ``graph``/``drones``/``turns`` - the routing/simulation
-    result computed beforehand by ``Router``/``Simulation`` - and never
-    changes it.
-    """
-    if use_pygame:
-        try:
-            import pygame  # noqa: F401
-        except ImportError:
-            use_pygame = False
-
-    if use_pygame:
-        _visualize_pygame(graph, drones, turns, delay)
-        return
-
-    frames = build_animation_frames(graph, drones, turns)
-    _visualize_terminal(frames, delay=delay, clear_screen=clear_screen)
-
-
-def _visualize_terminal(frames, *, delay=0.3, clear_screen=True):
-    for frame in frames:
-        if clear_screen:
-            os.system("clear")
-        print(render_text_frame(frame))
-        if delay:
-            time.sleep(delay)
-
-
-BG_COLOR = (6, 7, 9)
-PANEL_BG = (6, 7, 9)
-PANEL_BORDER = (232, 234, 237)
-EDGE_COLOR = (140, 145, 153)
-EDGE_LABEL_COLOR = (120, 125, 133)
-TEXT_COLOR = (235, 237, 240)
-TEXT_MUTED = (148, 153, 161)
-
+# --- colors -----------------------------------------------------------
+BACKGROUND_COLOR = (12, 12, 16)
+PANEL_COLOR = (20, 20, 26)
+LINE_COLOR = (235, 235, 235)
+TEXT_COLOR = (235, 235, 235)
+DIM_TEXT_COLOR = (40, 140, 150)
+DRONE_COLOR = (255, 176, 9)
+FINISHED_COLOR = (90, 200, 130)
 ZONE_COLORS = {
-    "normal": (214, 218, 224),
-    "restricted": (239, 83, 80),
-    "priority": (38, 198, 173),
-    "blocked": (95, 99, 107),
+    "restricted": (90, 150, 235),
+    "blocked": (200, 70, 70),
+    "priority": (235, 200, 90),
+    "normal": (235, 235, 235),
 }
-START_COLOR = (76, 217, 123)
-END_COLOR = (250, 197, 61)
-
-PANEL_WIDTH = 300
 
 
-def _clamp(value, low, high):
-    return max(low, min(high, value))
+class Visualization:
+    def __init__(self, graph, drones, turns, width=1100,
+                 height=650, turn_duration=0.5, fps=60):
+        self.graph = graph
+        self.drones = drones
+        self.turns = turns
 
+        self.width = width
+        self.height = height
+        self.sidebar_width = 260
+        self.turn_duration = turn_duration
+        self.fps = fps
 
-def _lerp(a, b, t):
-    return a + (b - a) * t
-
-
-def _ease(t):
-    """Smoothstep easing so drone motion accelerates/decelerates."""
-    t = _clamp(t, 0.0, 1.0)
-    return t * t * (3 - 2 * t)
-
-
-class _Camera:
-    """Maps world (map-file) coordinates to screen pixels.
-
-    Handles auto-fit to the map, mouse-wheel zoom (around the cursor) and
-    click-and-drag panning. Pure arithmetic, no pygame dependency, so this
-    class stays importable even on machines without pygame installed.
-    """
-
-    def __init__(self, bounds, viewport):
         self.zoom = 1.0
-        self.offset_x = 0.0
-        self.offset_y = 0.0
-        self._set_bounds(bounds)
-        self.set_viewport(viewport)
+        self.min_zoom = 0.5
+        self.max_zoom = 2.5
+        self.zoom_step = 0.1
 
-    def _set_bounds(self, bounds):
-        min_x, min_y, max_x, max_y = bounds
-        self.center_x = (min_x + max_x) / 2
-        self.center_y = (min_y + max_y) / 2
-        self.world_w = max(max_x - min_x, 1)
-        self.world_h = max(max_y - min_y, 1)
+        pygame.init()
+        pygame.display.set_caption("Fly-in - Drone Network")
+        self.screen = pygame.display.set_mode((self.width, self.height),
+                                              pygame.RESIZABLE)
 
-    def set_viewport(self, viewport):
-        self.viewport_w, self.viewport_h = viewport
-        margin = 130
-        avail_w = max(self.viewport_w - margin * 2, 100)
-        avail_h = max(self.viewport_h - margin * 2, 100)
-        self.base_scale = min(avail_w / self.world_w,
-                              avail_h / self.world_h)
+        self.title_font = pygame.font.SysFont("segoeui", 26, bold=True)
+        self.label_font = pygame.font.SysFont("segoeui", 16)
+        self.small_font = pygame.font.SysFont("segoeui", 14)
 
-    def world_to_screen(self, x, y):
-        scale = self.base_scale * self.zoom
-        sx = self.viewport_w / 2 + (x - self.center_x) * scale
-        sy = self.viewport_h / 2 + (y - self.center_y) * scale
-        return sx + self.offset_x, sy + self.offset_y
+        self.node_positions = self.compute_node_positions()
+        self.schedule = self.build_schedule()
 
-    def screen_to_world(self, pos):
-        scale = self.base_scale * self.zoom
-        x = (pos[0] - self.offset_x - self.viewport_w / 2)
-        y = (pos[1] - self.offset_y - self.viewport_h / 2)
-        return x / scale + self.center_x, y / scale + self.center_y
+        # Playback state.
+        self.current_turn = 0
+        self.turn_timer = 0.0
+        self.turn_progress = 0.0
+        self.paused = False
+        self.running = True
+        self.status = "Running" if self.turns else "Finished"
 
-    def zoom_at(self, screen_pos, factor):
-        world_pos = self.screen_to_world(screen_pos)
-        self.zoom = _clamp(self.zoom * factor, 0.25, 6.0)
-        new_screen = self.world_to_screen(*world_pos)
-        self.offset_x += screen_pos[0] - new_screen[0]
-        self.offset_y += screen_pos[1] - new_screen[1]
+    def get_hub_coordinates(self):
+        coords = {
+            self.graph.start: (
+                self.graph.start_data["x"],
+                self.graph.start_data["y"],
+            ),
+            self.graph.end: (
+                self.graph.end_data["x"],
+                self.graph.end_data["y"],
+            ),
+        }
+        for hub in self.graph.hubs:
+            coords[hub["name"]] = (hub["x"], hub["y"])
+        return coords
 
-    def pan(self, dx, dy):
-        self.offset_x += dx
-        self.offset_y += dy
+    def compute_node_positions(self):
+        coords = self.get_hub_coordinates()
 
+        xs = [pos[0] for pos in coords.values()]
+        ys = [pos[1] for pos in coords.values()]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
 
-def _build_hub_coords(graph):
-    coords = {
-        graph.start: (graph.start_data["x"], graph.start_data["y"]),
-        graph.end: (graph.end_data["x"], graph.end_data["y"]),
-    }
-    for hub in graph.hubs:
-        coords[hub["name"]] = (hub["x"], hub["y"])
-    return coords
+        x_range = max(max_x - min_x, 1)
+        y_range = max(max_y - min_y, 1)
 
+        margin = 90
+        play_width = self.width - self.sidebar_width - margin * 2
+        play_height = self.height - margin * 2
 
-def _build_edges(graph):
-    seen = set()
-    edges = []
-    for hub_name, neighbors in graph.adjacency.items():
-        for neighbor in neighbors:
-            other = neighbor["to"]
-            key = frozenset((hub_name, other))
-            if key in seen:
-                continue
-            seen.add(key)
-            edges.append((hub_name, other, neighbor.get("capacity", 1)))
-    return edges
+        positions = {}
+        for name, (x, y) in coords.items():
+            px = margin + (x - min_x) / x_range * play_width
+            py = margin + (y - min_y) / y_range * play_height
+            positions[name] = (px, py)
 
+        self.zoom_center = (
+            margin + play_width / 2,
+            margin + play_height / 2,
+        )
 
-def _parse_drone_move(move):
-    """Parse one entry of a simulation turn's move list.
+        return positions
 
-    Recognises the three formats produced by ``Simulation``:
-      ``D<id>-<zone>``        instantaneous move (cost 1)
-      ``D<id>-<from>-<to>``   start of a multi-turn transit
-      ``D<id>-><zone>``       arrival after a multi-turn transit
-    """
-    if not move or move[0] != "D":
-        return None
+    def apply_zoom(self, position):
+        # Scale a point around the graph's center by the current zoom.
+        cx, cy = self.zoom_center
+        x, y = position
+        zx = cx + (x - cx) * self.zoom
+        zy = cy + (y - cy) * self.zoom
+        return zx, zy
 
-    idx = 1
-    while idx < len(move) and move[idx].isdigit():
-        idx += 1
-    if idx == 1:
-        return None
+    def parse_move(self, move_text):
+        # Read one move string and say what it means.
+        # kind == "arrive"        -> data is the hub the drone reached
+        # kind == "direct"        -> data is the hub the drone moved to
+        #                            in a single turn
+        # kind == "start_transit" -> data is (from_hub, to_hub), the
+        #                            drone begins crossing a slow link
+        if "->" in move_text:
+            left, target_hub = move_text.split("->")
+            drone_id = int(left[1:])
+            return drone_id, "arrive", target_hub
 
-    drone_id = int(move[1:idx])
-    rest = move[idx:]
+        body = move_text[1:]  # drop the leading "D"
+        parts = body.split("-")
+        drone_id = int(parts[0])
+        hubs = parts[1:]
 
-    if rest.startswith("->"):
-        return drone_id, "arrival", rest[2:], None
-    if rest.startswith("-"):
-        parts = rest[1:].split("-")
-        if len(parts) == 1:
-            return drone_id, "single", parts[0], None
-        return drone_id, "transit_start", parts[-1], parts[0]
-    return None
+        if len(hubs) == 1:
+            return drone_id, "direct", hubs[0]
+        return drone_id, "start_transit", (hubs[0], hubs[1])
 
+    def build_schedule(self):
+        # Precompute where every drone is, turn by turn. This only reads
+        # data that already exists (the turns list, the drones' paths,
+        # and graph.get_cost). It does not run any pathfinding or
+        # simulation logic itself.
+        schedule = {}
+        state = {}
 
-def _build_drone_timeline(graph, drones, turns):
-    """Rebuild, frame by frame, the exact position of every drone.
+        for drone in self.drones:
+            state[drone.drone_id] = {
+                "hub": drone.path[0],
+                "transit_from": None,
+                "transit_to": None,
+                "transit_total": 1,
+                "transit_elapsed": 0,
+            }
+            schedule[drone.drone_id] = []
 
-    Returns a list (index 0 = before the first turn) of dicts mapping
-    ``drone_id`` to a state tuple:
-      ``("at", hub_name)``                  drone sitting at a hub
-      ``("transit", from_hub, to_hub, t)``  ``t`` (0..1) through a
-                                             multi-turn move
+        for turn_moves in self.turns:
+            events = {}
+            for move_text in turn_moves:
+                drone_id, kind, data = self.parse_move(move_text)
+                events[drone_id] = (kind, data)
 
-    This only replays the moves already produced by ``Simulation.run()``;
-    it makes no scheduling decision of its own.
-    """
-    state = {drone.drone_id: ("at", graph.start) for drone in drones}
-    timeline = [state]
-    pending = {}
+            for drone in self.drones:
+                entry = self.advance_drone_state(
+                    state[drone.drone_id], events.get(drone.drone_id)
+                )
+                schedule[drone.drone_id].append(entry)
 
-    for frame_index, turn_moves in enumerate(turns, start=1):
-        current = dict(timeline[frame_index - 1])
-        arrived = set()
+        return schedule
 
-        for move in turn_moves:
-            parsed = _parse_drone_move(move)
-            if parsed is None:
-                continue
-            drone_id, kind, target, source = parsed
+    def advance_drone_state(self, state, event):
+        # Move one drone's state forward by a single turn.
+        # Returns the schedule entry describing the drone's motion
+        # during this turn.
+        if event is None:
+            return self.advance_without_event(state)
 
-            if kind == "single":
-                current[drone_id] = ("at", target)
-                pending.pop(drone_id, None)
-            elif kind == "transit_start":
-                cost = graph.get_cost(target) or 1
-                pending[drone_id] = {
-                    "from": source,
-                    "to": target,
-                    "start_frame": frame_index - 1,
-                    "cost": max(cost, 1),
-                }
-                current[drone_id] = ("at", source)
-            elif kind == "arrival":
-                current[drone_id] = ("at", target)
-                pending.pop(drone_id, None)
-                arrived.add(drone_id)
+        kind, data = event
 
-        for drone_id, info in pending.items():
-            if drone_id in arrived:
-                continue
-            t = (frame_index - info["start_frame"]) / info["cost"]
-            current[drone_id] = ("transit", info["from"], info["to"],
-                                 _clamp(t, 0.0, 1.0))
+        if kind == "direct":
+            from_hub = state["hub"]
+            to_hub = str(data)
+            state["hub"] = to_hub
+            state["transit_to"] = None
+            return from_hub, to_hub, 0.0, 1.0
 
-        timeline.append(current)
+        if kind == "start_transit":
+            from_hub, to_hub = data
+            total_turns = self.graph.get_cost(to_hub) or 1
+            state["transit_from"] = from_hub
+            state["transit_to"] = to_hub
+            state["transit_total"] = total_turns
+            state["transit_elapsed"] = 1
+            end_fraction = min(1.0 / total_turns, 1.0)
+            return from_hub, to_hub, 0.0, end_fraction
 
-    return timeline
+        # kind == "arrive": confirms the drone reached the target hub.
+        to_hub = str(data)
+        from_hub = state["transit_from"] or state["hub"]
+        total_turns = state["transit_total"]
+        start_fraction = min(state["transit_elapsed"] / total_turns, 1.0)
+        state["hub"] = to_hub
+        state["transit_from"] = None
+        state["transit_to"] = None
+        return from_hub, to_hub, start_fraction, 1.0
 
+    def advance_without_event(self, state):
+        # Handle a turn where a drone had no move (waiting, or finished).
+        if state["transit_to"] is None:
+            # Idle: staying at the same hub (finished, or blocked/waiting).
+            return state["hub"], state["hub"], 0.0, 0.0
 
-def _state_position(state, hub_coords):
-    if state[0] == "at":
-        return hub_coords[state[1]]
-    _, from_hub, to_hub, t = state
-    fx, fy = hub_coords[from_hub]
-    tx, ty = hub_coords[to_hub]
-    return _lerp(fx, tx, t), _lerp(fy, ty, t)
+        # Mid-way through a multi-turn link, keep gliding toward the target.
+        total_turns = state["transit_total"]
+        start_fraction = state["transit_elapsed"] / total_turns
+        state["transit_elapsed"] += 1
+        end_fraction = min(state["transit_elapsed"] / total_turns, 1.0)
 
+        from_hub = state["transit_from"]
+        to_hub = state["transit_to"]
 
-def _drone_color(index):
-    import pygame
-    color = pygame.Color(0)
-    color.hsva = ((index * 47) % 360, 65, 100, 100)
-    return color.r, color.g, color.b
+        if state["transit_elapsed"] >= total_turns:
+            state["hub"] = to_hub
+            state["transit_from"] = None
+            state["transit_to"] = None
 
+        return from_hub, to_hub, start_fraction, end_fraction
 
-def _hexagon_points(cx, cy, r):
-    points = []
-    for i in range(6):
-        angle = math.radians(60 * i - 90)
-        points.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
-    return points
-
-
-def _draw_rounded_panel(pg, surface, rect, fill, border, radius=14,
-                        border_width=2):
-    pg.draw.rect(surface, fill, rect, border_radius=radius)
-    pg.draw.rect(surface, border, rect, width=border_width,
-                 border_radius=radius)
-
-
-def _text(pg, font, value, color):
-    return font.render(value, True, color)
-
-
-def _zone_color(graph, hub_name):
-    zone = graph.get_zone(hub_name)
-    return ZONE_COLORS.get(zone, ZONE_COLORS["normal"])
-
-
-def _visualize_pygame(graph, drones, turns, delay):
-    """Render the already-computed simulation with a polished pygame UI.
-
-    Reads ``graph``/``drones``/``turns`` only. No algorithm, scheduling or
-    simulation state is modified anywhere in this function.
-    """
-    import pygame
-    import pygame.gfxdraw
-
-    pygame.init()
-    pygame.display.set_caption("Fly-in - Drone Routing Visualization")
-    screen = pygame.display.set_mode((1600, 900), pygame.RESIZABLE)
-    clock = pygame.time.Clock()
-
-    font_title = pygame.font.SysFont("arial,segoeui,helvetica", 24,
-                                     bold=True)
-    font_label = pygame.font.SysFont("arial,segoeui,helvetica", 16)
-    font_small = pygame.font.SysFont("arial,segoeui,helvetica", 13)
-    font_drone = pygame.font.SysFont("arial,segoeui,helvetica", 12,
-                                     bold=True)
-
-    hub_coords = _build_hub_coords(graph)
-    edges = _build_edges(graph)
-    timeline = _build_drone_timeline(graph, drones, turns)
-    total_frames = len(timeline) - 1
-    total_drones = len(drones)
-    drone_colors = {d.drone_id: _drone_color(i) for i, d in
-                    enumerate(drones)}
-
-    xs = [c[0] for c in hub_coords.values()]
-    ys = [c[1] for c in hub_coords.values()]
-    bounds = (min(xs), min(ys), max(xs), max(ys))
-    camera = _Camera(bounds, (1600 - PANEL_WIDTH, 900))
-
-    state = "idle"  # idle -> playing -> finished ; space toggles paused
-    paused = False
-    playhead = 0.0
-    dragging = False
-    last_mouse = (0, 0)
-
-    def capacity_label(name):
-        capacity = graph.get_capacity(name)
-        return "inf" if capacity == float("inf") else str(int(capacity))
-
-    running = True
-    while running:
-        dt = clock.tick(60) / 1000.0
-        viewport_w = screen.get_width() - PANEL_WIDTH
-
+    def handle_events(self):
+        # React to window, keyboard and mouse events.
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                running = False
+                self.running = False
+
             elif event.type == pygame.VIDEORESIZE:
-                new_w = max(event.w, 900)
-                new_h = max(event.h, 500)
-                screen = pygame.display.set_mode((new_w, new_h),
-                                                 pygame.RESIZABLE)
-                camera.set_viewport((new_w - PANEL_WIDTH, new_h))
-                viewport_w = new_w - PANEL_WIDTH
+                self.width, self.height = event.w, event.h
+                self.screen = pygame.display.set_mode(
+                    (self.width, self.height), pygame.RESIZABLE
+                )
+                self.node_positions = self.compute_node_positions()
+
             elif event.type == pygame.KEYDOWN:
-                if event.key in (pygame.K_q, pygame.K_ESCAPE):
-                    running = False
-                elif event.key == pygame.K_s and state == "idle":
-                    state = "playing"
-                elif event.key == pygame.K_SPACE and state != "idle":
-                    paused = not paused
-                elif event.key == pygame.K_r:
-                    playhead = 0.0
-                    state = "playing"
-                    paused = False
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1 and event.pos[0] < viewport_w:
-                    dragging = True
-                    last_mouse = event.pos
-            elif event.type == pygame.MOUSEBUTTONUP:
-                if event.button == 1:
-                    dragging = False
-            elif event.type == pygame.MOUSEMOTION:
-                if dragging:
-                    dx = event.pos[0] - last_mouse[0]
-                    dy = event.pos[1] - last_mouse[1]
-                    camera.pan(dx, dy)
-                    last_mouse = event.pos
+                self.handle_key(event.key)
+
             elif event.type == pygame.MOUSEWHEEL:
-                mouse_pos = pygame.mouse.get_pos()
-                if mouse_pos[0] < viewport_w:
-                    factor = 1.1 if event.y > 0 else 1 / 1.1
-                    camera.zoom_at(mouse_pos, factor)
+                self.handle_zoom(event.y)
 
-        if state == "playing" and total_frames > 0:
-            if not paused:
-                playhead = min(playhead + dt / max(delay, 0.05),
-                               total_frames)
-                if playhead >= total_frames:
-                    state = "finished"
-        elif state == "playing" and total_frames == 0:
-            state = "finished"
+    def handle_key(self, key):
+        # Apply a single key press to the playback state.
+        if key in (pygame.K_q, pygame.K_ESCAPE):
+            self.running = False
+        elif key == pygame.K_SPACE:
+            self.paused = not self.paused
+        elif key == pygame.K_s:
+            self.current_turn = 0
+            self.turn_timer = 0.0
+            self.paused = False
+            self.status = "Running" if self.turns else "Finished"
 
-        frame_lo = int(playhead)
-        frame_hi = min(frame_lo + 1, total_frames)
-        local_t = _ease(playhead - frame_lo)
+    def handle_zoom(self, wheel_direction):
+        # Zoom in or out around the center of the graph.
+        self.zoom += wheel_direction * self.zoom_step
+        self.zoom = max(self.min_zoom, min(self.zoom, self.max_zoom))
 
-        screen.fill(BG_COLOR)
+    def update(self, dt):
+        # Advance the animation clock by dt seconds.
+        if self.paused or self.status == "Finished":
+            return
 
-        for hub_a, hub_b, capacity in edges:
-            ax, ay = camera.world_to_screen(*hub_coords[hub_a])
-            bx, by = camera.world_to_screen(*hub_coords[hub_b])
-            pygame.draw.aaline(screen, EDGE_COLOR, (ax, ay), (bx, by))
-            if capacity and capacity > 1:
-                mx, my = (ax + bx) / 2, (ay + by) / 2
-                badge = _text(pygame, font_small, f"x{capacity}",
-                              EDGE_LABEL_COLOR)
-                screen.blit(badge, (mx - badge.get_width() / 2,
-                                    my - badge.get_height() / 2))
+        self.turn_timer += dt
+        self.turn_progress = min(self.turn_timer / self.turn_duration, 1.0)
 
-        hex_radius = _clamp(26 * camera.zoom, 14, 46)
-        for name, (wx, wy) in hub_coords.items():
-            sx, sy = camera.world_to_screen(wx, wy)
-            is_start = name == graph.start
-            is_end = name == graph.end
-            if is_start:
-                color, width = START_COLOR, 3
-            elif is_end:
-                color, width = END_COLOR, 3
+        if self.turn_timer >= self.turn_duration:
+            self.turn_timer = 0.0
+            self.turn_progress = 0.0
+            if self.current_turn < len(self.turns) - 1:
+                self.current_turn += 1
             else:
-                color, width = _zone_color(graph, name), 2
+                self.status = "Finished"
 
-            points = _hexagon_points(sx, sy, hex_radius)
-            pygame.draw.polygon(screen, BG_COLOR, points)
-            pygame.draw.aalines(screen, color, True, points)
-            pygame.draw.polygon(screen, color, points, width)
+    def get_drone_position(self, drone_id):
+        # Return the current pixel position of one drone, zoomed.
+        entries = self.schedule[drone_id]
+        index = min(self.current_turn, len(entries) - 1)
+        from_hub, to_hub, start_fraction, end_fraction = entries[index]
 
-            label_text = name.upper() if (is_start or is_end) else name
-            label = _text(pygame, font_label, label_text, TEXT_COLOR)
-            screen.blit(label, (sx - label.get_width() / 2,
-                                sy - hex_radius - 20))
+        fraction = start_fraction + self.turn_progress * (end_fraction - start_fraction)
+        fraction = max(0.0, min(fraction, 1.0))
 
-            if not (is_start or is_end):
-                cap = capacity_label(name)
-                if cap != "1":
-                    cap_label = _text(pygame, font_small, f"cap {cap}",
-                                      TEXT_MUTED)
-                    screen.blit(cap_label,
-                                (sx - cap_label.get_width() / 2,
-                                 sy + hex_radius + 4))
+        from_pos = self.node_positions[from_hub]
+        to_pos = self.node_positions[to_hub]
+        x = from_pos[0] + (to_pos[0] - from_pos[0]) * fraction
+        y = from_pos[1] + (to_pos[1] - from_pos[1]) * fraction
+        return self.apply_zoom((x, y))
 
-        active_count = 0
-        finished_count = 0
-        cluster_slots = {}
-        for drone in drones:
-            drone_id = drone.drone_id
-            state_lo = timeline[frame_lo].get(drone_id,
-                                              ("at", graph.start))
-            state_hi = timeline[frame_hi].get(drone_id, state_lo)
-            px_lo, py_lo = _state_position(state_lo, hub_coords)
-            px_hi, py_hi = _state_position(state_hi, hub_coords)
-            wx = _lerp(px_lo, px_hi, local_t)
-            wy = _lerp(py_lo, py_hi, local_t)
+    def draw_background(self):
+        # Fill the whole window with the dark background color.
+        self.screen.fill(BACKGROUND_COLOR)
 
-            settled_state = state_hi if local_t > 0.999 else state_lo
-            is_finished = (settled_state[0] == "at"
-                           and settled_state[1] == graph.end)
-            if is_finished:
-                finished_count += 1
-            else:
-                active_count += 1
+    def hexagon_points(self, center, radius):
+        # Compute the 6 corner points of a flat-top hexagon.
+        points = []
+        for i in range(6):
+            angle = math.radians(60 * i)
+            x = center[0] + radius * math.cos(angle)
+            y = center[1] + radius * math.sin(angle)
+            points.append((x, y))
+        return points
 
-            cluster_key = (round(wx, 2), round(wy, 2))
-            slot = cluster_slots.get(cluster_key, 0)
-            cluster_slots[cluster_key] = slot + 1
-            jitter_radius = 9 if slot else 0
-            jitter_angle = slot * 2.4
+    def draw_edges(self):
+        # Draw a white line for every connection between two hubs.
+        drawn = set()
+        for hub_name, neighbors in self.graph.adjacency.items():
+            for neighbor in neighbors:
+                other = neighbor["to"]
+                edge_key = frozenset((hub_name, other))
+                if edge_key in drawn:
+                    continue
+                drawn.add(edge_key)
 
-            sx, sy = camera.world_to_screen(wx, wy)
-            sx += math.cos(jitter_angle) * jitter_radius
-            sy += math.sin(jitter_angle) * jitter_radius
+                start_pos = self.apply_zoom(self.node_positions[hub_name])
+                end_pos = self.apply_zoom(self.node_positions[other])
+                pygame.draw.line(self.screen, LINE_COLOR, start_pos, end_pos, 2)
 
-            color = drone_colors[drone_id]
-            radius = int(_clamp(7 * camera.zoom, 5, 12))
-            pygame.gfxdraw.filled_circle(screen, int(sx), int(sy),
-                                         radius, color)
-            pygame.gfxdraw.aacircle(screen, int(sx), int(sy), radius,
-                                    (10, 10, 10))
-            id_label = _text(pygame, font_drone, f"D{drone_id}",
-                             TEXT_COLOR)
-            screen.blit(id_label, (sx + radius + 2, sy - radius - 4))
+    def get_hub_color(self, hub_name):
+        # Read the explicit "color" attribute for a hub, if the map
+        # file provided one. Returns None when no color was set.
+        if hub_name == self.graph.start:
+            return self.graph.start_data.get("color")
+        if hub_name == self.graph.end:
+            return self.graph.end_data.get("color")
+        for hub in self.graph.hubs:
+            if hub["name"] == hub_name:
+                return hub.get("color")
+        return None
 
-        panel_rect = pygame.Rect(screen.get_width() - PANEL_WIDTH + 16,
-                                 16, PANEL_WIDTH - 32,
-                                 screen.get_height() - 32)
-        _draw_rounded_panel(pygame, screen, panel_rect, PANEL_BG,
-                            PANEL_BORDER)
+    def get_node_color(self, hub_name, zone):
+        # Prefer the explicit color from the map. Only fall back to the
+        # default zone color when no color was given.
+        explicit_color = self.get_hub_color(hub_name)
+        if explicit_color:
+            try:
+                return pygame.Color(explicit_color)
+            except ValueError:
+                pass
+        return ZONE_COLORS.get(zone, LINE_COLOR)
 
-        pad = 20
-        x0 = panel_rect.x + pad
-        y = panel_rect.y + pad
+    def draw_nodes(self):
+        # Draw every hub as an outlined hexagon with its name.
+        radius = 46 * self.zoom
+        for hub_name, position in self.node_positions.items():
+            zoomed_position = self.apply_zoom(position)
+            zone = self.graph.get_zone(hub_name)
+            outline_color = self.get_node_color(hub_name, zone)
 
-        title_by_state = {
-            "idle": "READY",
-            "playing": "PAUSED" if paused else "RUNNING",
-            "finished": "COMPLETE",
-        }
-        color_by_state = {
-            "idle": TEXT_MUTED,
-            "playing": START_COLOR,
-            "finished": END_COLOR,
-        }
-        screen.blit(_text(pygame, font_title, title_by_state[state],
-                          color_by_state[state]), (x0, y))
-        y += 40
-        pygame.draw.line(screen, PANEL_BORDER, (panel_rect.x, y),
-                         (panel_rect.right, y), 1)
-        y += 20
+            points = self.hexagon_points(zoomed_position, radius)
+            pygame.draw.polygon(self.screen, BACKGROUND_COLOR, points)
+            pygame.draw.polygon(self.screen, outline_color, points, 2)
 
-        current_turn = min(frame_lo + 1, total_frames) if total_frames \
-            else 0
-        stats = [
-            ("Turn", f"{current_turn} / {total_frames}"),
-            ("Total drones", str(total_drones)),
-            ("Active", str(active_count)),
-            ("Finished", str(finished_count)),
-        ]
-        for label_text, value_text in stats:
-            screen.blit(_text(pygame, font_label, label_text, TEXT_MUTED),
-                        (x0, y))
-            value = _text(pygame, font_label, value_text, TEXT_COLOR)
-            screen.blit(value, (panel_rect.right - pad - value.get_width(),
-                                y))
-            y += 25
+            label = self.small_font.render(hub_name, True, TEXT_COLOR)
+            label_rect = label.get_rect(
+                center=(zoomed_position[0], zoomed_position[1] - 6)
+            )
+            self.screen.blit(label, label_rect)
 
-        y += 10
-        pygame.draw.line(screen, PANEL_BORDER, (panel_rect.x, y),
-                         (panel_rect.right, y), 1)
-        y += 18
+            if zone != "normal":
+                tag = self.small_font.render(zone, True, outline_color)
+                tag_rect = tag.get_rect(
+                    center=(zoomed_position[0], zoomed_position[1] + 14)
+                )
+                self.screen.blit(tag, tag_rect)
 
-        screen.blit(_text(pygame, font_label, "Legend", TEXT_COLOR),
-                    (x0, y))
-        y += 26
-        legend_items = [
-            ("Start", START_COLOR),
-            ("End", END_COLOR),
-            ("Normal", ZONE_COLORS["normal"]),
-            ("Priority", ZONE_COLORS["priority"]),
-            ("Restricted", ZONE_COLORS["restricted"]),
-            ("Blocked", ZONE_COLORS["blocked"]),
-        ]
-        for label_text, color in legend_items:
-            pygame.draw.circle(screen, color, (x0 + 6, y + 7), 6, 2)
-            screen.blit(_text(pygame, font_small, label_text, TEXT_MUTED),
-                        (x0 + 20, y))
-            y += 20
+    def group_drone_positions(self):
+        # Group drones that are currently very close together. This lets
+        # us spread overlapping drones apart a little so they stay
+        # readable, instead of drawing them exactly on top of each other.
+        groups = {}
+        for drone in self.drones:
+            x, y = self.get_drone_position(drone.drone_id)
+            bucket = (round(x / 12), round(y / 12))
+            groups.setdefault(bucket, []).append(drone.drone_id)
+        return groups
 
-        y += 8
-        pygame.draw.line(screen, PANEL_BORDER, (panel_rect.x, y),
-                         (panel_rect.right, y), 1)
-        y += 18
-        screen.blit(_text(pygame, font_label, "Controls", TEXT_COLOR),
-                    (x0, y))
-        y += 26
+    def draw_drones(self):
+        # Draw every drone as a small circle at its current position.
+        groups = self.group_drone_positions()
+        drone_radius = 8 * self.zoom
+        spread = 14 * self.zoom
+
+        for drone_ids in groups.values():
+            count = len(drone_ids)
+            for slot, drone_id in enumerate(drone_ids):
+                x, y = self.get_drone_position(drone_id)
+
+                if count > 1:
+                    angle = math.radians(360 * slot / count)
+                    x += math.cos(angle) * spread
+                    y += math.sin(angle) * spread
+
+                drone = next(d for d in self.drones if d.drone_id == drone_id)
+                color = (
+                    FINISHED_COLOR if self.drone_is_finished(drone_id) else DRONE_COLOR
+                )
+                pygame.draw.circle(self.screen, color, (x, y), drone_radius)
+                pygame.draw.circle(
+                    self.screen, BACKGROUND_COLOR, (x, y), drone_radius, 1
+                )
+
+                tag = self.small_font.render(
+                    str(drone.drone_id), True, BACKGROUND_COLOR
+                )
+                self.screen.blit(tag, tag.get_rect(center=(x, y)))
+
+    def drone_is_finished(self, drone_id):
+        # Check, from the schedule, whether a drone has reached the end.
+        entries = self.schedule[drone_id]
+        index = min(self.current_turn, len(entries) - 1)
+        _, to_hub, _, end_fraction = entries[index]
+        drone = next(d for d in self.drones if d.drone_id == drone_id)
+        at_last_turn = index == len(entries) - 1
+        return to_hub == drone.path[-1] and end_fraction >= 1.0 and at_last_turn
+
+    def draw_turn(self):
+        # Draw the current turn number and simulation status.
+        panel_x = self.width - self.sidebar_width
+        turn_text = f"Turn: {self.current_turn + 1} / {max(len(self.turns), 1)}"
+        turn_surface = self.label_font.render(turn_text, True, TEXT_COLOR)
+        self.screen.blit(turn_surface, (panel_x + 24, 96))
+
+        status_surface = self.label_font.render(
+            f"Status: {self.status}", True, TEXT_COLOR
+        )
+        self.screen.blit(status_surface, (panel_x + 24, 126))
+
+    def draw_sidebar(self):
+        # Draw the right-side information panel.
+        panel_x = self.width - self.sidebar_width
+        panel_rect = pygame.Rect(panel_x, 0, self.sidebar_width, self.height)
+        pygame.draw.rect(self.screen, PANEL_COLOR, panel_rect)
+        pygame.draw.line(
+            self.screen, LINE_COLOR, (panel_x, 0), (panel_x, self.height), 2
+        )
+
+        title_surface = self.title_font.render("Fly-in", True, TEXT_COLOR)
+        self.screen.blit(title_surface, (panel_x + 24, 30))
+
+        self.draw_turn()
+
+        drones_text = f"nb_drones: {len(self.drones)}"
+        drones_surface = self.label_font.render(drones_text, True, TEXT_COLOR)
+        self.screen.blit(drones_surface, (panel_x + 24, 170))
+
+        finished_count = sum(
+            1 for drone in self.drones if self.drone_is_finished(drone.drone_id)
+        )
+        landed_text = f"landed: {finished_count} / {len(self.drones)}"
+        landed_surface = self.small_font.render(landed_text, True, DIM_TEXT_COLOR)
+        self.screen.blit(landed_surface, (panel_x + 24, 196))
+
+        controls_title = self.label_font.render("Controls", True, TEXT_COLOR)
+        self.screen.blit(controls_title, (panel_x + 24, self.height - 130))
+
         controls = [
-            ("start", "S"),
-            ("pause", "space"),
-            ("restart", "R"),
-            ("quit", "Q / Esc"),
-            ("zoom", "scroll"),
-            ("pan", "drag"),
+            "space : pause / resume",
+            "s : restart",
+            "q : quit",
+            "scroll : zoom",
         ]
-        for action, key in controls:
-            screen.blit(_text(pygame, font_small, action, TEXT_MUTED),
-                        (x0, y))
-            key_label = _text(pygame, font_small, key, TEXT_COLOR)
-            screen.blit(key_label,
-                        (panel_rect.right - pad - key_label.get_width(),
-                         y))
-            y += 20
+        for i, line in enumerate(controls):
+            surface = self.small_font.render(line, True, DIM_TEXT_COLOR)
+            self.screen.blit(surface, (panel_x + 24, self.height - 100 + i * 22))
 
-        if state == "idle":
-            hint = _text(pygame, font_label, "Press S to start",
-                         END_COLOR)
-            screen.blit(hint, (x0, panel_rect.bottom - pad - 24))
-
+    def draw(self):
+        # Draw one full frame: background, graph, drones, then sidebar.
+        self.draw_background()
+        self.draw_edges()
+        self.draw_nodes()
+        self.draw_drones()
+        self.draw_sidebar()
         pygame.display.flip()
 
-    pygame.quit()
+    def run(self):
+        # Run the visualization until the window is closed.
+        clock = pygame.time.Clock()
+
+        while self.running:
+            dt = clock.tick(self.fps) / 1000.0
+            self.handle_events()
+            self.update(dt)
+            self.draw()
+
+        pygame.quit()
+
+
+def visualize(graph, drones, turns, use_pygame=True, delay=0.5):
+    # Small compatibility wrapper so main.py does not need to change.
+    # Builds a Visualization and runs it. use_pygame is accepted for
+    # backward compatibility with the previous function signature.
+    if not use_pygame:
+        return
+    view = Visualization(graph, drones, turns, turn_duration=delay)
+    view.run()

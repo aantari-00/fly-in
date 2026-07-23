@@ -1,5 +1,5 @@
 # Medium Level 1: Dead end trap - drones might get stuck
-nb_drones: 5
+nb_drones: 588488
 
 start_hub: start 0 0 [color=green max_drones=5]
 hub: junction 1 0 [color=yellow max_drones=2]

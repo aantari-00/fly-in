@@ -2,7 +2,7 @@ from parser import parse_map
 from graph import Graph
 from router import Router
 from simulation import Simulation
-from visualization import visualize
+from visualization import Visualization
 
 
 def main():
@@ -28,7 +28,8 @@ def main():
 
     for i, turn in enumerate(turns, start=1):
         print(f"Turn {i}: {' '.join(turn)}")
-    visualize(graph, drones, turns, use_pygame=True, delay=0.3)
+    view = Visualization(graph, drones, turns, turn_duration=0.3)
+    view.run()
     return
 
 
