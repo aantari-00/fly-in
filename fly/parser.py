@@ -1,9 +1,16 @@
 """Map parsing helpers for the fly-in simulation."""
 
 from pyparsing import (
-    Word, alphas, Optional,
-    Suppress, Group, OneOrMore, ParseException, pyparsing_common,
-    one_of, pythonStyleComment
+    Word,
+    alphas,
+    Optional,
+    Suppress,
+    Group,
+    OneOrMore,
+    ParseException,
+    pyparsing_common,
+    one_of,
+    pythonStyleComment,
 )
 import pyparsing
 
@@ -19,10 +26,8 @@ class Connection:
 
     def __eq__(self, value: object) -> bool:
         """Compare this connection with another connection."""
-        return (
-            (self.hub1 == value.hub2 and self.hub2 == value.hub1)
-            or
-            (self.hub1 == value.hub1 and self.hub2 == value.hub2)
+        return (self.hub1 == value.hub2 and self.hub2 == value.hub1) or (
+            self.hub1 == value.hub1 and self.hub2 == value.hub2
         )
 
     def __hash__(self) -> int:
@@ -63,9 +68,9 @@ def save_hub(text: str, loc: int, tokens: object) -> None:
     hub = Hub(name, x, y)
 
     if hub in hubs:
-        raise pyparsing.ParseFatalException(text, loc,
-                                            f"Error: repeated hub '{name}'"
-                                            f" ({x}, {y})!")
+        raise pyparsing.ParseFatalException(
+            text, loc, f"Error: repeated hub '{name}'" f" ({x}, {y})!"
+        )
 
     hubs.add(hub)
 
@@ -81,28 +86,23 @@ def save_connection(text: str, loc: int, tokens: object) -> None:
 
     connection = Connection(hub1, hub2)
     if hub1 == hub2:
-        raise pyparsing.ParseFatalException(text, loc, "Error: self"
-                                            f"connection '{hub1}-{hub2}'!")
+        raise pyparsing.ParseFatalException(
+            text, loc, "Error: self" f"connection '{hub1}-{hub2}'!"
+        )
 
     if connection in connections:
         raise pyparsing.ParseFatalException(
-            text,
-            loc,
-            f"Error: repeated connection '{hub1}-{hub2}'!"
+            text, loc, f"Error: repeated connection '{hub1}-{hub2}'!"
         )
 
     if hub1 not in hubs_name:
         raise pyparsing.ParseFatalException(
-            text,
-            loc,
-            f"Error: hub '{hub1}' not declared!"
+            text, loc, f"Error: hub '{hub1}' not declared!"
         )
 
     if hub2 not in hubs_name:
         raise pyparsing.ParseFatalException(
-            text,
-            loc,
-            f"Error: hub '{hub2}' not declared!"
+            text, loc, f"Error: hub '{hub2}' not declared!"
         )
 
     connections.add(connection)
@@ -114,71 +114,78 @@ POS_INT = pyparsing_common.integer
 SIGNED_INT = pyparsing_common.signed_integer
 
 # NB_DRONES
-NB_DRONES = (Suppress("nb_drones") + Suppress(":") + POS_INT("count"))
+NB_DRONES = Suppress("nb_drones") + Suppress(":") + POS_INT("count")
 NB_DRONES.add_condition(
     lambda tokens: int(tokens.get("count")) > 0,
     message="Logical Error: The number of drones must be greater than 0!",
-    fatal=True
+    fatal=True,
 )
 
 # HUB BASIC
-HUB_BASIC = (NAME("name") + SIGNED_INT("x") + SIGNED_INT("y"))
+HUB_BASIC = NAME("name") + SIGNED_INT("x") + SIGNED_INT("y")
 
 # METADATA
-ZONE = (Suppress("zone") + Suppress("=") +
-        one_of("restricted normal blocked priority")("zone"))
-COLOR = (Suppress("color") + Suppress("=") + Word(alphas)("color"))
-MAX_DRONES = (Suppress("max_drones") +
-              Suppress("=") + POS_INT("max_drones"))
+ZONE = (
+    Suppress("zone")
+    + Suppress("=")
+    + one_of("restricted normal blocked priority")("zone")
+)
+COLOR = Suppress("color") + Suppress("=") + Word(alphas)("color")
+MAX_DRONES = Suppress("max_drones") + Suppress("=") + POS_INT("max_drones")
 MAX_DRONES.add_condition(
     lambda tokens: int(tokens.get("max_drones")) > 0,
-    message="Logical Error: The number of max_drones "
-    "must be greater than 0!",
-    fatal=True
+    message="Logical Error: The number of max_drones " "must be greater than 0!",
+    fatal=True,
 )
-METADATA = (Suppress("[") + (Optional(ZONE) & Optional(COLOR) &
-                             Optional(MAX_DRONES)) + Suppress("]"))
+METADATA = (
+    Suppress("[")
+    + (Optional(ZONE) & Optional(COLOR) & Optional(MAX_DRONES))
+    + Suppress("]")
+)
 
 # HUB
-HUB = Group(Suppress("hub") + Suppress(":")
-            + HUB_BASIC + Optional(METADATA))("hub").set_results_name(
-                "Hubs", list_all_matches=True)
+HUB = Group(Suppress("hub") + Suppress(":") + HUB_BASIC + Optional(METADATA))(
+    "hub"
+).set_results_name("Hubs", list_all_matches=True)
 HUB.set_parse_action(save_hub)
 
 # START_HUB
-START_HUB = Group(Suppress("start_hub") + Suppress(":")
-                  + HUB_BASIC + Optional(METADATA)).set_results_name(
-                      "start_hub", list_all_matches=True)
+START_HUB = Group(
+    Suppress("start_hub") + Suppress(":") + HUB_BASIC + Optional(METADATA)
+).set_results_name("start_hub", list_all_matches=True)
 START_HUB.set_parse_action(save_hub)
 
 #  END_HUB
-END_HUB = Group(Suppress("end_hub") + Suppress(":") + HUB_BASIC
-                + Optional(METADATA)).set_results_name(
-                    "end_hub", list_all_matches=True)
+END_HUB = Group(
+    Suppress("end_hub") + Suppress(":") + HUB_BASIC + Optional(METADATA)
+).set_results_name("end_hub", list_all_matches=True)
 END_HUB.set_parse_action(save_hub)
 
 # CONNECTION METADATA
-MAX_LINK_CAPACITY = (Suppress("max_link_capacity") + Suppress("=")
-                     + POS_INT("max_link_capacity"))
+MAX_LINK_CAPACITY = (
+    Suppress("max_link_capacity") + Suppress("=") + POS_INT("max_link_capacity")
+)
 MAX_LINK_CAPACITY.add_condition(
     lambda tokens: int(tokens.get("max_link_capacity")) > 0,
-    message="Logical Error: The number of max_link_capacity"
-    "must be greater than 0!",
-    fatal=True
+    message="Logical Error: The number of max_link_capacity" "must be greater than 0!",
+    fatal=True,
 )
-CONNECTION_METADATA = (Suppress("[") + MAX_LINK_CAPACITY + Suppress("]"))
+CONNECTION_METADATA = Suppress("[") + MAX_LINK_CAPACITY + Suppress("]")
 
 # CONNECTION
-CONNECTION = Group(Suppress("connection")
-                   + Suppress(":") + NAME("from_zone")
-                   + Suppress("-") + NAME("to_zone")
-                   + Optional(CONNECTION_METADATA)).set_results_name(
-                       "Connections", list_all_matches=True)
+CONNECTION = Group(
+    Suppress("connection")
+    + Suppress(":")
+    + NAME("from_zone")
+    + Suppress("-")
+    + NAME("to_zone")
+    + Optional(CONNECTION_METADATA)
+).set_results_name("Connections", list_all_matches=True)
 CONNECTION.set_parse_action(save_connection)
-STATEMENTS = (END_HUB | START_HUB | HUB | CONNECTION)
+STATEMENTS = END_HUB | START_HUB | HUB | CONNECTION
 
 # GLOBAL RULES
-rules = (NB_DRONES - OneOrMore(STATEMENTS))
+rules = NB_DRONES - OneOrMore(STATEMENTS)
 rules.ignore(pythonStyleComment)
 
 
@@ -191,10 +198,10 @@ def parse_map(filename: str) -> object:
         res = result.as_dict()
         if len(res.get("start_hub", [])) != 1:
             raise pyparsing.ParseFatalException(
-                "logical Error: expected one start_hub !")
+                "logical Error: expected one start_hub !"
+            )
         if len(res.get("end_hub", [])) != 1:
-            raise pyparsing.ParseFatalException(
-                "logical Error: expected one end_hub !")
+            raise pyparsing.ParseFatalException("logical Error: expected one end_hub !")
         return res
     except (ParseException, pyparsing.exceptions.ParseBaseException) as e:
         print(e.explain())

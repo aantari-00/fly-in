@@ -50,7 +50,13 @@ class Simulation:
 
         return landed
 
-    def try_move(self, drone: object, zone_occupancy: dict, link_occupancy: dict, turn_moves: list) -> None:
+    def try_move(
+        self,
+        drone: object,
+        zone_occupancy: dict,
+        link_occupancy: dict,
+        turn_moves: list,
+    ) -> None:
         """Attempt to move a ready drone if the capacity rules allow it."""
         current = drone.current_hub()
         next_hub = drone.next_hub()
@@ -116,8 +122,7 @@ class Simulation:
             link_occupancy = self.link_occupancy()
 
             for drone in self.get_ready_drones(landed):
-                self.try_move(drone, zone_occupancy, link_occupancy,
-                              turn_moves)
+                self.try_move(drone, zone_occupancy, link_occupancy, turn_moves)
             self.turns.append(turn_moves)
 
             if len(self.turns) > max_turns:

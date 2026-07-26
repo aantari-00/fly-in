@@ -25,7 +25,7 @@ class Router:
 
             for i in range(len(previous_path) - 1):
                 spur_node = previous_path[i]
-                root_path = previous_path[:i + 1]
+                root_path = previous_path[: i + 1]
                 removed_edges = self.block_known_edges(accepted, root_path, i)
                 removed_nodes = self.block_root_nodes(root_path)
                 new_path = self.dijkstra.get_path(source=spur_node)
@@ -36,8 +36,7 @@ class Router:
                 n_path, _ = new_path
                 total_path = root_path[:-1] + n_path
                 total_cost = self.graph.path_cost(total_path)
-                self.add_candidate(candidates, accepted,
-                                   total_path, total_cost)
+                self.add_candidate(candidates, accepted, total_path, total_cost)
 
             if not candidates:
                 break
@@ -50,13 +49,15 @@ class Router:
 
         return path_cost or accepted
 
-    def block_known_edges(self, accepted: list, root_path: list, spur_index: int) -> list:
+    def block_known_edges(
+        self, accepted: list, root_path: list, spur_index: int
+    ) -> list:
         """Remove edges already used by accepted paths for this root."""
         removed = []
 
         for path, _ in accepted:
 
-            if path[:spur_index + 1] == root_path:
+            if path[: spur_index + 1] == root_path:
 
                 if len(path) > spur_index + 1:
 
@@ -84,7 +85,9 @@ class Router:
         for removed in reversed(removed_nodes):
             self.graph.restore_node(removed)
 
-    def add_candidate(self, candidates: list, accepted: list, path: list, cost: int) -> None:
+    def add_candidate(
+        self, candidates: list, accepted: list, path: list, cost: int
+    ) -> None:
         """Add a new candidate path if it is not already known."""
         for accepted_path, _ in accepted:
             if accepted_path == path:

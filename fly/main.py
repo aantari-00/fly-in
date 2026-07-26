@@ -5,10 +5,20 @@ from graph import Graph
 from router import Router
 from simulation import Simulation
 from visualization import Visualization
+from types import FrameType
+import signal
+import sys
 
 
 def main() -> None:
     """Run the parsing, routing, simulation, and visualization pipeline."""
+
+    def handler(signum: int, frame: FrameType | None) -> None:
+        if signum == signal.SIGQUIT:
+            sys.exit(1)
+
+    signal.signal(signal.SIGINT, handler)
+    signal.signal(signal.SIGQUIT, handler)
     # parsing
     data = parse_map("map.txt")
     if data is None:

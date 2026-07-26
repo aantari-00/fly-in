@@ -21,8 +21,16 @@ ZONE_COLORS = {
 class Visualization:
     """Render the simulation state as an animated map."""
 
-    def __init__(self, graph: object, drones: list, turns: list, width: int = 1600,
-                 height: int = 950, turn_duration: float = 0.8, fps: int = 60) -> None:
+    def __init__(
+        self,
+        graph: object,
+        drones: list,
+        turns: list,
+        width: int = 1600,
+        height: int = 950,
+        turn_duration: float = 1.0,
+        fps: int = 60,
+    ) -> None:
         """Initialize the visualization with the graph, drones, and turns."""
         self.graph = graph
         self.drones = drones
@@ -39,8 +47,9 @@ class Visualization:
 
         pygame.init()
         pygame.display.set_caption("Fly-in -> (safe🐍)")
-        self.screen = pygame.display.set_mode((self.width, self.height),
-                                              pygame.RESIZABLE)
+        self.screen = pygame.display.set_mode(
+            (self.width, self.height), pygame.RESIZABLE
+        )
         self.title_font = pygame.font.SysFont("Courier New", 26, bold=True)
         self.label_font = pygame.font.SysFont("Courier New", 16)
         self.small_font = pygame.font.SysFont("segoeui", 14)
@@ -175,8 +184,9 @@ class Visualization:
                 events[drone_id] = (ty_pe, data)
 
             for drone in self.drones:
-                entry = self.advance_drone_state(state[drone.drone_id],
-                                                 events.get(drone.drone_id))
+                entry = self.advance_drone_state(
+                    state[drone.drone_id], events.get(drone.drone_id)
+                )
                 schedule[drone.drone_id].append(entry)
         return schedule
 
@@ -246,8 +256,7 @@ class Visualization:
         index = min(self.current_turn, len(entries) - 1)
         from_hub, to_hub, start_fraction, end_fraction = entries[index]
 
-        fraction = start_fraction + self.turn_progress * \
-            (end_fraction - start_fraction)
+        fraction = start_fraction + self.turn_progress * (end_fraction - start_fraction)
         fraction = max(0.0, min(fraction, 1.0))
 
         from_pos = self.node_positions[from_hub]
@@ -283,8 +292,7 @@ class Visualization:
 
                 start_pos = self.apply_zoom(self.node_positions[hub_name])
                 end_pos = self.apply_zoom(self.node_positions[other])
-                pygame.draw.line(self.screen, LINE_COLOR,
-                                 start_pos, end_pos, 2)
+                pygame.draw.line(self.screen, LINE_COLOR, start_pos, end_pos, 2)
 
     def get_hub_color(self, hub_name: str) -> object:
         """Return the explicit color configured for a hub, if any."""
@@ -359,8 +367,7 @@ class Visualization:
 
                 drone = next(d for d in self.drones if d.drone_id == drone_id)
                 color = (
-                    FINISHED_COLOR if self.drone_is_finished(
-                        drone_id) else DRONE_COLOR
+                    FINISHED_COLOR if self.drone_is_finished(drone_id) else DRONE_COLOR
                 )
                 pygame.draw.circle(self.screen, color, (x, y), drone_radius)
                 pygame.draw.circle(
@@ -379,8 +386,7 @@ class Visualization:
         _, to_hub, _, end_fraction = entries[index]
         drone = next(d for d in self.drones if d.drone_id == drone_id)
         at_last_turn = index == len(entries) - 1
-        return (to_hub == drone.path[-1]
-                and end_fraction >= 1.0 and at_last_turn)
+        return to_hub == drone.path[-1] and end_fraction >= 1.0 and at_last_turn
 
     def draw_turn(self) -> None:
         """Draw the current turn and status in the sidebar."""
@@ -432,8 +438,7 @@ class Visualization:
         ]
         for i, line in enumerate(controls):
             surface = self.small_font.render(line, True, DIM_TEXT_COLOR)
-            self.screen.blit(
-                surface, (panel_x + 24, self.height - 100 + i * 22))
+            self.screen.blit(surface, (panel_x + 24, self.height - 100 + i * 22))
 
     def draw(self) -> None:
         """Render the complete visualization frame."""
@@ -449,7 +454,7 @@ class Visualization:
         clock = pygame.time.Clock()
 
         while self.running:
-            dt = clock.tick(self.fps) / 1000.0
+            dt = clock.tick(self.fps) / 10000.0
             self.handle_events()
             self.update(dt)
             self.draw()
@@ -457,7 +462,13 @@ class Visualization:
         pygame.quit()
 
 
-def visualize(graph: object, drones: list, turns: list, use_pygame: bool = True, delay: float = 0.5) -> None:
+def visualize(
+    graph: object,
+    drones: list,
+    turns: list,
+    use_pygame: bool = True,
+    delay: float = 0.5,
+) -> None:
     """Create and run the visualization if pygame is enabled."""
     if not use_pygame:
         return

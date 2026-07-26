@@ -46,7 +46,7 @@ class Graph:
     def get_capacity(self, name: str) -> object:
         """Return the maximum number of drones allowed at a hub."""
         if name == self.start or name == self.end:
-            return float('inf')
+            return float("inf")
         for hub in self.hubs:
             if hub["name"] == name:
                 return hub.get("max_drones", 1)
@@ -73,24 +73,27 @@ class Graph:
             hub1 = conn["from_zone"]
             hub2 = conn["to_zone"]
 
-            if (self.get_zone(hub1) == "blocked"
-                    or self.get_zone(hub2) == "blocked"):
+            if self.get_zone(hub1) == "blocked" or self.get_zone(hub2) == "blocked":
                 continue
 
             cost_to_hub2 = self.get_cost(hub2)
             cost_to_hub1 = self.get_cost(hub1)
 
-            adj[hub1].append({
-                "to": hub2,
-                "cost": cost_to_hub2,
-                "capacity": conn.get("max_link_capacity", 1)
-            })
+            adj[hub1].append(
+                {
+                    "to": hub2,
+                    "cost": cost_to_hub2,
+                    "capacity": conn.get("max_link_capacity", 1),
+                }
+            )
 
-            adj[hub2].append({
-                "to": hub1,
-                "cost": cost_to_hub1,
-                "capacity": conn.get("max_link_capacity", 1)
-            })
+            adj[hub2].append(
+                {
+                    "to": hub1,
+                    "cost": cost_to_hub1,
+                    "capacity": conn.get("max_link_capacity", 1),
+                }
+            )
 
         return adj
 
@@ -116,10 +119,7 @@ class Graph:
 
     def remove_node(self, hub: str) -> dict:
         """Remove a node from the graph and return the removed state."""
-        removed = {
-            "node": None,
-            "edges": []
-        }
+        removed = {"node": None, "edges": []}
 
         if hub not in self.adjacency:
             return removed

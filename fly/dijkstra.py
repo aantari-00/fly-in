@@ -56,10 +56,7 @@ class Dijkstra:
                 if self.graph.get_zone(hub) == "priority":
                     priority_score -= 1
 
-                new_distance = (
-                    distance[current][0] + cost,
-                    priority_score
-                )
+                new_distance = (distance[current][0] + cost, priority_score)
 
                 if new_distance < distance[hub]:
                     distance[hub] = new_distance
