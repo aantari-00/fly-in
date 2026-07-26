@@ -1,17 +1,19 @@
+"""Simple pygame visualization scaffold for the sample project."""
+
 import pygame
 import sys
 
 pygame.init()
 
-WIDTH = 1200
-HEIGHT = 700
+WIDTH: int = 1200
+HEIGHT: int = 700
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Fly-in  (safe🐍)")
 
 clock = pygame.time.Clock()
 
-running = True
+running: bool = True
 
 while running:
 

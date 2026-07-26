@@ -1,11 +1,18 @@
+"""Simulation engine for moving drones across the map."""
+
+
 class Simulation:
-    def __init__(self, graph, drones):
+    """Advance drone movement turn by turn while respecting capacities."""
+
+    def __init__(self, graph: object, drones: list) -> None:
+        """Initialize the simulation with a graph and drone list."""
         self.graph = graph
         self.drones = drones
         self.in_transit = {}
         self.turns = []
 
-    def zone_occupancy(self):
+    def zone_occupancy(self) -> dict:
+        """Return the current occupancy count for each hub."""
         occupancy = {}
         for drone in self.drones:
             if drone.finished:
@@ -18,14 +25,16 @@ class Simulation:
                 occupancy[hub] = occupancy.get(hub, 0) + 1
         return occupancy
 
-    def link_occupancy(self):
+    def link_occupancy(self) -> dict:
+        """Return the number of drones currently occupying each link."""
         occupancy = {}
         for info in self.in_transit.values():
             link = info["link"]
             occupancy[link] = occupancy.get(link, 0) + 1
         return occupancy
 
-    def resolve_arrivals(self, turn_moves):
+    def resolve_arrivals(self, turn_moves: list) -> set:
+        """Advance drones that are currently completing transit moves."""
         landed = set()
         for drone in self.drones:
             if drone.finished or drone.drone_id not in self.in_transit:
@@ -41,7 +50,8 @@ class Simulation:
 
         return landed
 
-    def try_move(self, drone, zone_occupancy, link_occupancy, turn_moves):
+    def try_move(self, drone: object, zone_occupancy: dict, link_occupancy: dict, turn_moves: list) -> None:
+        """Attempt to move a ready drone if the capacity rules allow it."""
         current = drone.current_hub()
         next_hub = drone.next_hub()
         if next_hub is None:
@@ -75,8 +85,8 @@ class Simulation:
             }
             turn_moves.append(f"D{drone.drone_id}-{current}-{next_hub}")
 
-    def get_ready_drones(self, landed):
-
+    def get_ready_drones(self, landed: set) -> list:
+        """Return the drones that are ready to move in the current turn."""
         ready = [
             drone
             for drone in self.drones
@@ -85,7 +95,7 @@ class Simulation:
             and drone.drone_id not in landed
         ]
 
-        def remaining_cost(drone):
+        def remaining_cost(drone: object) -> int:
             index = drone.path_index + 1
             remaining_hubs = drone.path[index:]
             return sum(self.graph.get_cost(hub) for hub in remaining_hubs)
@@ -94,7 +104,8 @@ class Simulation:
 
         return ready
 
-    def run(self):
+    def run(self) -> list:
+        """Run the full simulation until all drones are finished."""
         max_turns = len(self.graph.adjacency) * len(self.drones) * 10
 
         while not all(drone.finished for drone in self.drones):

@@ -1,3 +1,5 @@
+"""Pygame visualization for the fly-in simulation."""
+
 import math
 import pygame
 
@@ -17,8 +19,11 @@ ZONE_COLORS = {
 
 
 class Visualization:
-    def __init__(self, graph, drones, turns, width=1600,
-                 height=950, turn_duration=0.8, fps=60):
+    """Render the simulation state as an animated map."""
+
+    def __init__(self, graph: object, drones: list, turns: list, width: int = 1600,
+                 height: int = 950, turn_duration: float = 0.8, fps: int = 60) -> None:
+        """Initialize the visualization with the graph, drones, and turns."""
         self.graph = graph
         self.drones = drones
         self.turns = turns
@@ -49,7 +54,8 @@ class Visualization:
         self.running = True
         self.status = "Running" if self.turns else "Finished"
 
-    def get_hub_coordinates(self):
+    def get_hub_coordinates(self) -> dict:
+        """Return the coordinates for the graph hubs."""
         coords = {
             self.graph.start: (
                 self.graph.start_data["x"],
@@ -64,7 +70,8 @@ class Visualization:
             coords[hub["name"]] = (hub["x"], hub["y"])
         return coords
 
-    def compute_node_positions(self):
+    def compute_node_positions(self) -> dict:
+        """Compute the node positions used for rendering."""
         coords = self.get_hub_coordinates()
 
         xs = [pos[0] for pos in coords.values()]
@@ -91,7 +98,8 @@ class Visualization:
 
         return positions
 
-    def parse_move(self, move_text):
+    def parse_move(self, move_text: str) -> tuple:
+        """Parse a move string into a visualization event."""
         body = move_text[1:]
         parts = body.split("-")
         drone_id = int(parts[0])
@@ -101,7 +109,8 @@ class Visualization:
             return drone_id, "direct", hubs[0]
         return drone_id, "start_transit", (hubs[0], hubs[1])
 
-    def advance_drone_state(self, state, event):
+    def advance_drone_state(self, state: dict, event: tuple) -> tuple:
+        """Advance the state of one drone for a turn."""
         if event is None:
             return self.advance_without_event(state)
 
@@ -124,7 +133,8 @@ class Visualization:
             end_fraction = min(1.0 / total_turns, 1.0)
             return from_hub, to_hub, 0.0, end_fraction
 
-    def advance_without_event(self, state):
+    def advance_without_event(self, state: dict) -> tuple:
+        """Advance the drone state when no move event occurs."""
         if state["transit_to"] is None:
             return state["hub"], state["hub"], 0.0, 0.0
 
@@ -143,7 +153,8 @@ class Visualization:
 
         return from_hub, to_hub, start_fraction, end_fraction
 
-    def build_schedule(self):
+    def build_schedule(self) -> dict:
+        """Build the per-drone transition schedule for visualization."""
         schedule = {}
         state = {}
 
@@ -169,18 +180,21 @@ class Visualization:
                 schedule[drone.drone_id].append(entry)
         return schedule
 
-    def handle_zoom(self, wheel_direction):
+    def handle_zoom(self, wheel_direction: int) -> None:
+        """Adjust the zoom level in response to wheel input."""
         self.zoom += wheel_direction * self.zoom_step
         self.zoom = max(self.min_zoom, min(self.zoom, self.max_zoom))
 
-    def apply_zoom(self, position):
+    def apply_zoom(self, position: tuple) -> tuple:
+        """Apply the current zoom level to a point."""
         cx, cy = self.zoom_center
         x, y = position
         zx = cx + (x - cx) * self.zoom
         zy = cy + (y - cy) * self.zoom
         return zx, zy
 
-    def handle_events(self):
+    def handle_events(self) -> None:
+        """Process pygame events for the visualization."""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
@@ -198,7 +212,8 @@ class Visualization:
             elif event.type == pygame.MOUSEWHEEL:
                 self.handle_zoom(event.y)
 
-    def handle_key(self, key):
+    def handle_key(self, key: int) -> None:
+        """Handle keyboard shortcuts for the visualization."""
         if key in (pygame.K_q, pygame.K_ESCAPE):
             self.running = False
         elif key == pygame.K_SPACE:
@@ -209,7 +224,8 @@ class Visualization:
             self.paused = False
             self.status = "Running" if self.turns else "Finished"
 
-    def update(self, dt):
+    def update(self, dt: float) -> None:
+        """Advance the animation state by the elapsed time."""
         if self.paused or self.status == "Finished":
             return
 
@@ -224,7 +240,8 @@ class Visualization:
             else:
                 self.status = "Finished"
 
-    def get_drone_position(self, drone_id):
+    def get_drone_position(self, drone_id: int) -> tuple:
+        """Return the current on-screen position for a drone."""
         entries = self.schedule[drone_id]
         index = min(self.current_turn, len(entries) - 1)
         from_hub, to_hub, start_fraction, end_fraction = entries[index]
@@ -239,10 +256,12 @@ class Visualization:
         y = from_pos[1] + (to_pos[1] - from_pos[1]) * fraction
         return self.apply_zoom((x, y))
 
-    def draw_background(self):
+    def draw_background(self) -> None:
+        """Draw the background color for the visualization."""
         self.screen.fill(BACKGROUND_COLOR)
 
-    def hexagon_points(self, center, radius):
+    def hexagon_points(self, center: tuple, radius: float) -> list:
+        """Compute the points for a hexagon around the given center."""
         points = []
         for i in range(6):
             angle = math.radians(60 * i)
@@ -251,7 +270,8 @@ class Visualization:
             points.append((x, y))
         return points
 
-    def draw_edges(self):
+    def draw_edges(self) -> None:
+        """Draw the graph edges between hubs."""
         drawn = set()
         for hub_name, neighbors in self.graph.adjacency.items():
             for neighbor in neighbors:
@@ -266,7 +286,8 @@ class Visualization:
                 pygame.draw.line(self.screen, LINE_COLOR,
                                  start_pos, end_pos, 2)
 
-    def get_hub_color(self, hub_name):
+    def get_hub_color(self, hub_name: str) -> object:
+        """Return the explicit color configured for a hub, if any."""
         if hub_name == self.graph.start:
             return self.graph.start_data.get("color")
         if hub_name == self.graph.end:
@@ -276,7 +297,8 @@ class Visualization:
                 return hub.get("color")
         return None
 
-    def get_node_color(self, hub_name, zone):
+    def get_node_color(self, hub_name: str, zone: str) -> object:
+        """Return the display color used for a hub."""
         explicit_color = self.get_hub_color(hub_name)
         if explicit_color:
             try:
@@ -285,7 +307,8 @@ class Visualization:
                 pass
         return ZONE_COLORS.get(zone, LINE_COLOR)
 
-    def draw_nodes(self):
+    def draw_nodes(self) -> None:
+        """Draw the hub nodes and their labels."""
         radius = 46 * self.zoom
         for hub_name, position in self.node_positions.items():
             zoomed_position = self.apply_zoom(position)
@@ -309,7 +332,8 @@ class Visualization:
                 )
                 self.screen.blit(tag, tag_rect)
 
-    def group_drone_positions(self):
+    def group_drone_positions(self) -> dict:
+        """Group drones by nearby screen coordinates."""
         groups = {}
         for drone in self.drones:
             x, y = self.get_drone_position(drone.drone_id)
@@ -317,7 +341,8 @@ class Visualization:
             groups.setdefault(bucket, []).append(drone.drone_id)
         return groups
 
-    def draw_drones(self):
+    def draw_drones(self) -> None:
+        """Draw the drone markers on the map."""
         groups = self.group_drone_positions()
         drone_radius = 8 * self.zoom
         spread = 14 * self.zoom
@@ -347,7 +372,8 @@ class Visualization:
                 )
                 self.screen.blit(tag, tag.get_rect(center=(x, y)))
 
-    def drone_is_finished(self, drone_id):
+    def drone_is_finished(self, drone_id: int) -> bool:
+        """Return whether the given drone has reached its final state."""
         entries = self.schedule[drone_id]
         index = min(self.current_turn, len(entries) - 1)
         _, to_hub, _, end_fraction = entries[index]
@@ -356,7 +382,8 @@ class Visualization:
         return (to_hub == drone.path[-1]
                 and end_fraction >= 1.0 and at_last_turn)
 
-    def draw_turn(self):
+    def draw_turn(self) -> None:
+        """Draw the current turn and status in the sidebar."""
         panel_x = self.width - self.sidebar_width
         turn_text = f"Turn:{self.current_turn + 1} / {max(len(self.turns), 1)}"
         turn_surface = self.label_font.render(turn_text, True, TEXT_COLOR)
@@ -367,8 +394,8 @@ class Visualization:
         )
         self.screen.blit(status_surface, (panel_x + 24, 126))
 
-    def draw_sidebar(self):
-        # Draw the right-side information panel.
+    def draw_sidebar(self) -> None:
+        """Draw the right-side information panel."""
         panel_x = self.width - self.sidebar_width
         panel_rect = pygame.Rect(panel_x, 0, self.sidebar_width, self.height)
         pygame.draw.rect(self.screen, PANEL_COLOR, panel_rect)
@@ -408,7 +435,8 @@ class Visualization:
             self.screen.blit(
                 surface, (panel_x + 24, self.height - 100 + i * 22))
 
-    def draw(self):
+    def draw(self) -> None:
+        """Render the complete visualization frame."""
         self.draw_background()
         self.draw_edges()
         self.draw_nodes()
@@ -416,7 +444,8 @@ class Visualization:
         self.draw_sidebar()
         pygame.display.flip()
 
-    def run(self):
+    def run(self) -> None:
+        """Run the visualization loop until the user exits."""
         clock = pygame.time.Clock()
 
         while self.running:
@@ -428,7 +457,8 @@ class Visualization:
         pygame.quit()
 
 
-def visualize(graph, drones, turns, use_pygame=True, delay=0.5):
+def visualize(graph: object, drones: list, turns: list, use_pygame: bool = True, delay: float = 0.5) -> None:
+    """Create and run the visualization if pygame is enabled."""
     if not use_pygame:
         return
     view = Visualization(graph, drones, turns, turn_duration=delay)

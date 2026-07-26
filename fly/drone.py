@@ -1,19 +1,28 @@
+"""Drone state and movement helpers."""
+
+
 class Drone:
-    def __init__(self, drone_id, path):
+    """Represent a drone following a predefined path."""
+
+    def __init__(self, drone_id: int, path: list) -> None:
+        """Initialize the drone with an identifier and route."""
         self.drone_id = drone_id
         self.path = path
         self.path_index = 0
         self.finished = False
 
-    def current_hub(self):
+    def current_hub(self) -> object:
+        """Return the current hub of the drone."""
         return self.path[self.path_index]
 
-    def next_hub(self):
+    def next_hub(self) -> object:
+        """Return the next hub in the route if one exists."""
         if self.path_index + 1 < len(self.path):
             return self.path[self.path_index + 1]
         return None
 
-    def move(self):
+    def move(self) -> None:
+        """Advance the drone along its path."""
         if self.finished:
             return
 

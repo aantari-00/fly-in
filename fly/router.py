@@ -1,14 +1,19 @@
+"""Routing logic for selecting and assigning drone paths."""
+
 from dijkstra import Dijkstra
 from drone import Drone
 
 
 class Router:
+    """Build candidate paths and assign drones to them."""
 
-    def __init__(self, graph):
+    def __init__(self, graph: object) -> None:
+        """Initialize the router with a graph and a shortest-path solver."""
         self.graph = graph
         self.dijkstra = Dijkstra(graph)
 
-    def find_paths(self, max_path=20):
+    def find_paths(self, max_path: int = 20) -> list:
+        """Find candidate paths up to the requested maximum count."""
         first = self.dijkstra.get_path()
         if first is None:
             return []
@@ -45,8 +50,8 @@ class Router:
 
         return path_cost or accepted
 
-    def block_known_edges(self, accepted, root_path, spur_index):
-
+    def block_known_edges(self, accepted: list, root_path: list, spur_index: int) -> list:
+        """Remove edges already used by accepted paths for this root."""
         removed = []
 
         for path, _ in accepted:
@@ -62,21 +67,25 @@ class Router:
 
         return removed
 
-    def restore_known_edges(self, removed):
+    def restore_known_edges(self, removed: list) -> None:
+        """Restore edges removed during path exploration."""
         self.graph.restore_edge(removed)
 
-    def block_root_nodes(self, root_path):
+    def block_root_nodes(self, root_path: list) -> list:
+        """Remove the root path nodes to avoid reusing them."""
         removed_nodes = []
         for hub in root_path[:-1]:
             removed = self.graph.remove_node(hub)
             removed_nodes.append(removed)
         return removed_nodes
 
-    def restore_root_nodes(self, removed_nodes):
+    def restore_root_nodes(self, removed_nodes: list) -> None:
+        """Restore nodes removed during path exploration."""
         for removed in reversed(removed_nodes):
             self.graph.restore_node(removed)
 
-    def add_candidate(self, candidates, accepted, path, cost):
+    def add_candidate(self, candidates: list, accepted: list, path: list, cost: int) -> None:
+        """Add a new candidate path if it is not already known."""
         for accepted_path, _ in accepted:
             if accepted_path == path:
                 return
@@ -86,7 +95,8 @@ class Router:
 
         candidates.append((path, cost))
 
-    def assign_drones(self, paths, nb_drones):
+    def assign_drones(self, paths: list, nb_drones: int) -> list:
+        """Assign drones to the available paths using simple load balancing."""
         loads = [0] * len(paths)
         drones = []
 

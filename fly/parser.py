@@ -1,3 +1,5 @@
+"""Map parsing helpers for the fly-in simulation."""
+
 from pyparsing import (
     Word, alphas, Optional,
     Suppress, Group, OneOrMore, ParseException, pyparsing_common,
@@ -7,32 +9,42 @@ import pyparsing
 
 
 class Connection:
-    def __init__(self, hub1, hub2, max_connections=1) -> None:
+    """Represent an undirected connection between two hubs."""
+
+    def __init__(self, hub1: str, hub2: str, max_connections: int = 1) -> None:
+        """Initialize the connection with its endpoints."""
         self.hub1 = hub1
         self.hub2 = hub2
         self.max_connections = max_connections
 
-    def __eq__(self, value):
+    def __eq__(self, value: object) -> bool:
+        """Compare this connection with another connection."""
         return (
             (self.hub1 == value.hub2 and self.hub2 == value.hub1)
             or
             (self.hub1 == value.hub1 and self.hub2 == value.hub2)
         )
 
-    def __hash__(self):
+    def __hash__(self) -> int:
+        """Provide a hash based on the connection endpoints."""
         return hash(frozenset([self.hub1, self.hub2]))
 
 
 class Hub:
-    def __init__(self, name, x, y):
+    """Represent a hub node in the map."""
+
+    def __init__(self, name: str, x: int, y: int) -> None:
+        """Initialize the hub with its identifier and coordinates."""
         self.name = name
         self.x = x
         self.y = y
 
-    def __eq__(self, value):
+    def __eq__(self, value: object) -> bool:
+        """Compare hubs by their names."""
         return self.name == value.name
 
-    def __hash__(self):
+    def __hash__(self) -> int:
+        """Provide a hash based on the hub name."""
         return hash((self.name))
 
 
@@ -40,7 +52,8 @@ connections = set()
 hubs = set()
 
 
-def save_hub(text, loc, tokens):
+def save_hub(text: str, loc: int, tokens: object) -> None:
+    """Store a parsed hub in the global hub set."""
     hub_info = tokens[0]
 
     name = hub_info["name"]
@@ -57,7 +70,8 @@ def save_hub(text, loc, tokens):
     hubs.add(hub)
 
 
-def save_connection(text, loc, tokens):
+def save_connection(text: str, loc: int, tokens: object) -> None:
+    """Store a parsed connection in the global connection set."""
     connection_info = tokens[0]
 
     hub1 = connection_info["from_zone"]
@@ -67,7 +81,7 @@ def save_connection(text, loc, tokens):
 
     connection = Connection(hub1, hub2)
     if hub1 == hub2:
-        raise pyparsing.ParseFatalException(text, loc, "Error: self" 
+        raise pyparsing.ParseFatalException(text, loc, "Error: self"
                                             f"connection '{hub1}-{hub2}'!")
 
     if connection in connections:
@@ -168,7 +182,8 @@ rules = (NB_DRONES - OneOrMore(STATEMENTS))
 rules.ignore(pythonStyleComment)
 
 
-def parse_map(filename: str):
+def parse_map(filename: str) -> object:
+    """Parse a map file and return the parsed data dictionary."""
     try:
         hubs.clear()
         connections.clear()

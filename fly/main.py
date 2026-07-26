@@ -1,3 +1,5 @@
+"""Entry point for running the fly-in simulation."""
+
 from parser import parse_map
 from graph import Graph
 from router import Router
@@ -5,7 +7,8 @@ from simulation import Simulation
 from visualization import Visualization
 
 
-def main():
+def main() -> None:
+    """Run the parsing, routing, simulation, and visualization pipeline."""
     # parsing
     data = parse_map("map.txt")
     if data is None:

@@ -1,19 +1,25 @@
+"""Graph representation and helper methods for routing."""
+
+
 class Graph:
-    def __init__(self, data):
-        self.nb_drones = data["count"]
-        self.start = data["start_hub"][0]["name"]
-        self.end = data["end_hub"][0]["name"]
-        self.hubs = data["Hubs"]
+    """Store map data and expose graph operations."""
+
+    def __init__(self, data: dict) -> None:
+        """Initialize the graph from parsed map data."""
+        self.nb_drones: int = data["count"]
+        self.start: str = data["start_hub"][0]["name"]
+        self.end: str = data["end_hub"][0]["name"]
+        self.hubs: list = data["Hubs"]
         # data (start & end)
-        self.start_data = data["start_hub"][0]
-        self.end_data = data["end_hub"][0]
+        self.start_data: dict = data["start_hub"][0]
+        self.end_data: dict = data["end_hub"][0]
 
-        self.connections = data["Connections"]
+        self.connections: list = data["Connections"]
         # adjacency list
-        self.adjacency = self.build_adj()
+        self.adjacency: dict = self.build_adj()
 
-    def get_zone(self, name):
-
+    def get_zone(self, name: str) -> str:
+        """Return the zone of the requested hub."""
         if name == self.start:
             return self.start_data.get("zone", "normal")
 
@@ -26,7 +32,8 @@ class Graph:
 
         return "normal"
 
-    def get_cost(self, name):
+    def get_cost(self, name: str) -> object:
+        """Return the traversal cost for a hub."""
         zone = self.get_zone(name)
         if zone in ["normal", "priority"]:
             return 1
@@ -36,7 +43,8 @@ class Graph:
             return None
         return 1
 
-    def get_capacity(self, name):
+    def get_capacity(self, name: str) -> object:
+        """Return the maximum number of drones allowed at a hub."""
         if name == self.start or name == self.end:
             return float('inf')
         for hub in self.hubs:
@@ -44,13 +52,15 @@ class Graph:
                 return hub.get("max_drones", 1)
         return 1
 
-    def get_link_capacity(self, hub1, hub2):
+    def get_link_capacity(self, hub1: str, hub2: str) -> object:
+        """Return the capacity of the link between two hubs."""
         for neighbor in self.adjacency[hub1]:
             if neighbor["to"] == hub2:
                 return neighbor["capacity"]
         return 1
 
-    def build_adj(self):
+    def build_adj(self) -> dict:
+        """Build the adjacency list for the graph."""
         adj = {}
 
         adj[self.start] = []
@@ -84,7 +94,8 @@ class Graph:
 
         return adj
 
-    def remove_edge(self, hub1, hub2):
+    def remove_edge(self, hub1: str, hub2: str) -> list:
+        """Remove the edge between two hubs from the graph."""
         removed = []
         for entry in list(self.adjacency[hub1]):
             if entry["to"] == hub2:
@@ -98,11 +109,13 @@ class Graph:
 
         return removed
 
-    def restore_edge(self, removed):
+    def restore_edge(self, removed: list) -> None:
+        """Restore an edge removed from the graph."""
         for hub, entry in removed:
             self.adjacency[hub].append(entry)
 
-    def remove_node(self, hub):
+    def remove_node(self, hub: str) -> dict:
+        """Remove a node from the graph and return the removed state."""
         removed = {
             "node": None,
             "edges": []
@@ -119,7 +132,8 @@ class Graph:
                     removed["edges"].append((current, entry))
         return removed
 
-    def restore_node(self, removed):
+    def restore_node(self, removed: dict) -> None:
+        """Restore a node removed from the graph."""
         hub, adjacency = removed["node"]
 
         self.adjacency[hub] = adjacency
@@ -127,7 +141,8 @@ class Graph:
         for current, entry in removed["edges"]:
             self.adjacency[current].append(entry)
 
-    def path_cost(self, path):
+    def path_cost(self, path: list) -> int:
+        """Compute the total path cost for a route."""
         cost = 0
 
         for hub in path[1:]:

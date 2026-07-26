@@ -1,9 +1,15 @@
-class Dijkstra:
+"""Shortest-path utilities for the drone routing project."""
 
-    def __init__(self, graph):
+
+class Dijkstra:
+    """Solve shortest paths over the graph structure."""
+
+    def __init__(self, graph: object) -> None:
+        """Initialize the solver with a graph instance."""
         self.graph = graph
 
-    def initialize(self, source):
+    def initialize(self, source: str) -> tuple:
+        """Create the initial distance, previous, and visited state."""
         distance = {}
         previous = {}
         visited = set()
@@ -16,7 +22,8 @@ class Dijkstra:
 
         return distance, previous, visited
 
-    def get_min_node(self, distance, visited):
+    def get_min_node(self, distance: dict, visited: set) -> object:
+        """Return the unvisited node with the smallest known distance."""
         min_node = None
 
         for hub in distance:
@@ -28,7 +35,8 @@ class Dijkstra:
 
         return min_node
 
-    def shortest_path(self, source):
+    def shortest_path(self, source: str) -> tuple:
+        """Compute the shortest path information from the given source."""
         distance, previous, visited = self.initialize(source)
 
         while True:
@@ -59,7 +67,8 @@ class Dijkstra:
 
         return distance, previous
 
-    def get_path(self, source=None):
+    def get_path(self, source: object = None) -> object:
+        """Return a path from the source to the graph end node."""
         if source is None:
             source = self.graph.start
 
