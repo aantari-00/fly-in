@@ -35,7 +35,7 @@ class Simulation:
             info["turns_left"] -= 1
             if info["turns_left"] == 0:
                 drone.move()
-                turn_moves.append(f"D{drone.drone_id}->{info['target']}")
+                turn_moves.append(f"D{drone.drone_id}-{info['target']}")
                 del self.in_transit[drone.drone_id]
                 landed.add(drone.drone_id)
 

@@ -25,6 +25,7 @@ def main():
     drones = router.assign_drones(paths, graph.nb_drones)
     simulation = Simulation(graph, drones)
     turns = simulation.run()
+    print(turns)
 
     for i, turn in enumerate(turns, start=1):
         print(f"Turn {i}: {' '.join(turn)}")
