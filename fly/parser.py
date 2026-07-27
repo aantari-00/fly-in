@@ -201,8 +201,9 @@ def parse_map(filename: str) -> object:
                 "logical Error: expected one start_hub !"
             )
         if len(res.get("end_hub", [])) != 1:
-            raise pyparsing.ParseFatalException("logical Error: expected one end_hub !")
+            raise pyparsing.ParseFatalException("logical Error: "
+                                                "expected one end_hub !")
         return res
     except (ParseException, pyparsing.exceptions.ParseBaseException) as e:
-        print(e.explain())
+        print(f"Parse error (line {e.lineno}, col {e.column}): {e.msg}")
         return None

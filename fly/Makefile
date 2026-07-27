@@ -1,8 +1,9 @@
+MAP ?= map.txt
 install:
 	pip install -r requirements.txt
 
 run:
-	python3 main.py
+	python3 main.py $(MAP)
 
 debug:
 	python3 -m pdb main.py

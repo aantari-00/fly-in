@@ -20,7 +20,10 @@ def main() -> None:
     signal.signal(signal.SIGINT, handler)
     signal.signal(signal.SIGQUIT, handler)
     # parsing
-    data = parse_map("map.txt")
+    if len(sys.argv) != 2:
+        print("Usage: python main.py <map_file>")
+        return
+    data = parse_map(sys.argv[1])
     if data is None:
         print("Error parsing map")
         return
