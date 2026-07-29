@@ -1,13 +1,11 @@
-"""Map parsing helpers for the fly-in simulation."""
-
 from pyparsing import (
     Word,
     alphas,
     Optional,
     Suppress,
     Group,
+    Combine,
     OneOrMore,
-    ParseException,
     pyparsing_common,
     one_of,
     pythonStyleComment,
@@ -125,13 +123,13 @@ NB_DRONES.add_condition(
 HUB_BASIC = NAME("name") + SIGNED_INT("x") + SIGNED_INT("y")
 
 # METADATA
-ZONE = (
+ZONE = Combine(
     Suppress("zone")
     + Suppress("=")
-    + one_of("restricted normal blocked priority")("zone")
-)
-COLOR = Suppress("color") + Suppress("=") + Word(alphas)("color")
-MAX_DRONES = Suppress("max_drones") + Suppress("=") + POS_INT("max_drones")
+    + one_of("restricted normal blocked priority")
+)("zone")
+COLOR = Combine(Suppress("color") + Suppress("=") + Word(alphas))("color")
+MAX_DRONES = Combine(Suppress("max_drones") + Suppress("=") + POS_INT)("max_drones")
 MAX_DRONES.add_condition(
     lambda tokens: int(tokens.get("max_drones")) > 0,
     message="Logical Error: The number of max_drones " "must be greater than 0!",
@@ -162,9 +160,9 @@ END_HUB = Group(
 END_HUB.set_parse_action(save_hub)
 
 # CONNECTION METADATA
-MAX_LINK_CAPACITY = (
-    Suppress("max_link_capacity") + Suppress("=") + POS_INT("max_link_capacity")
-)
+MAX_LINK_CAPACITY = Combine(
+    Suppress("max_link_capacity") + Suppress("=") + POS_INT
+)("max_link_capacity")
 MAX_LINK_CAPACITY.add_condition(
     lambda tokens: int(tokens.get("max_link_capacity")) > 0,
     message="Logical Error: The number of max_link_capacity" "must be greater than 0!",
@@ -189,6 +187,32 @@ rules = NB_DRONES - OneOrMore(STATEMENTS)
 rules.ignore(pythonStyleComment)
 
 
+_CUSTOM_ERROR_PREFIXES = ("Error:", "Logical Error:", "logical Error:")
+
+
+def _is_custom_error(e: pyparsing.ParseBaseException) -> bool:
+    """Check whether a parse exception carries one of our own validation
+    messages, as opposed to a pyparsing-generated grammar message.
+
+    We can't rely on the exception *type* for this: the '-' error-stop
+    operator in `rules` re-wraps ANY exception raised past that point
+    (including our own ParseFatalException from save_hub/save_connection/
+    add_condition) into a ParseSyntaxException, while keeping the original
+    .msg intact. So we classify by message content instead.
+    """
+    return e.msg.startswith(_CUSTOM_ERROR_PREFIXES)
+
+
+def _format_syntax_error(e: pyparsing.ParseBaseException) -> str:
+    """Build a short, readable message for a syntax/grammar error."""
+    near = e.line.strip() if e.line else ""
+    detail = f": '{near}'" if near else ""
+    return (
+        f"Syntax error (line {e.lineno}, col {e.column}): "
+        f"unexpected or malformed input{detail}"
+    )
+
+
 def parse_map(filename: str) -> object:
     """Parse a map file and return the parsed data dictionary."""
     try:
@@ -204,6 +228,14 @@ def parse_map(filename: str) -> object:
             raise pyparsing.ParseFatalException("logical Error: "
                                                 "expected one end_hub !")
         return res
-    except (ParseException, pyparsing.exceptions.ParseBaseException) as e:
-        print(f"Parse error (line {e.lineno}, col {e.column}): {e.msg}")
+    except pyparsing.ParseBaseException as e:
+        if _is_custom_error(e):
+            # Our own logical errors: keep the exact message, only add a
+            # line number when it refers to a real position in the file
+            # (the start_hub/end_hub count checks raise with no real loc).
+            has_location = not e.msg.startswith("logical Error")
+            location = f" (line {e.lineno})" if has_location else ""
+            print(f"{e.msg}{location}")
+        else:
+            print(_format_syntax_error(e))
         return None
