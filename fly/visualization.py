@@ -492,7 +492,7 @@ class Visualization:
         clock = pygame.time.Clock()
 
         while self.running:
-            dt = clock.tick(self.fps) / 5000.0
+            dt = clock.tick(self.fps) / 3000.0
             self.handle_events()
             self.update(dt)
             self.draw()

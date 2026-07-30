@@ -49,14 +49,15 @@ class Graph:
             return float("inf")
         for hub in self.hubs:
             if hub["name"] == name:
-                return hub.get("max_drones", 1)
+                val = hub.get("max_drones", 1)
+                return int(val)
         return 1
 
     def get_link_capacity(self, hub1: str, hub2: str) -> object:
         """Return the capacity of the link between two hubs."""
         for neighbor in self.adjacency[hub1]:
             if neighbor["to"] == hub2:
-                return neighbor["capacity"]
+                return int(neighbor["capacity"])
         return 1
 
     def build_adj(self) -> dict:

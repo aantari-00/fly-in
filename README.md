@@ -111,6 +111,7 @@ You can also use the provided Makefile:
 ```bash
 cd fly
 make run
+make run MAP=../all/maps/easy/01_linear_path.txt
 ```
 
 The current entry point uses `map.txt` by default.
