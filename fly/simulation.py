@@ -1,19 +1,23 @@
 """Simulation engine for moving drones across the map."""
 
+from typing import Any
+
+from drone import Drone
+
 
 class Simulation:
     """Advance drone movement turn by turn while respecting capacities."""
 
-    def __init__(self, graph: object, drones: list) -> None:
+    def __init__(self, graph: Any, drones: list[Drone]) -> None:
         """Initialize the simulation with a graph and drone list."""
         self.graph = graph
         self.drones = drones
-        self.in_transit = {}
-        self.turns = []
+        self.in_transit: dict[int, dict[str, Any]] = {}
+        self.turns: list[list[str]] = []
 
-    def zone_occupancy(self) -> dict:
+    def zone_occupancy(self) -> dict[str, int]:
         """Return the current occupancy count for each hub."""
-        occupancy = {}
+        occupancy: dict[str, int] = {}
         for drone in self.drones:
             if drone.finished:
                 continue
@@ -25,17 +29,17 @@ class Simulation:
                 occupancy[hub] = occupancy.get(hub, 0) + 1
         return occupancy
 
-    def link_occupancy(self) -> dict:
+    def link_occupancy(self) -> dict[tuple[str, str], int]:
         """Return the number of drones currently occupying each link."""
-        occupancy = {}
+        occupancy: dict[tuple[str, str], int] = {}
         for info in self.in_transit.values():
             link = info["link"]
             occupancy[link] = occupancy.get(link, 0) + 1
         return occupancy
 
-    def resolve_arrivals(self, turn_moves: list) -> set:
+    def resolve_arrivals(self, turn_moves: list[str]) -> set[int]:
         """Advance drones that are currently completing transit moves."""
-        landed = set()
+        landed: set[int] = set()
         for drone in self.drones:
             if drone.finished or drone.drone_id not in self.in_transit:
                 continue
@@ -52,10 +56,10 @@ class Simulation:
 
     def try_move(
         self,
-        drone: object,
-        zone_occupancy: dict,
-        link_occupancy: dict,
-        turn_moves: list,
+        drone: Drone,
+        zone_occupancy: dict[str, int],
+        link_occupancy: dict[tuple[str, str], int],
+        turn_moves: list[str],
     ) -> None:
         """Attempt to move a ready drone if the capacity rules allow it."""
         current = drone.current_hub()
@@ -69,7 +73,10 @@ class Simulation:
         if zone_occupancy.get(next_hub, 0) >= capacity:
             return
 
-        link = tuple(sorted([current, next_hub]))
+        if current <= next_hub:
+            link: tuple[str, str] = (current, next_hub)
+        else:
+            link = (next_hub, current)
         link_capacity = self.graph.get_link_capacity(current, next_hub)
 
         if link_occupancy.get(link, 0) >= link_capacity:
@@ -91,9 +98,9 @@ class Simulation:
             }
             turn_moves.append(f"D{drone.drone_id}-{current}-{next_hub}")
 
-    def get_ready_drones(self, landed: set) -> list:
+    def get_ready_drones(self, landed: set[int]) -> list[Drone]:
         """Return the drones that are ready to move in the current turn."""
-        ready = [
+        ready: list[Drone] = [
             drone
             for drone in self.drones
             if not drone.finished
@@ -101,29 +108,30 @@ class Simulation:
             and drone.drone_id not in landed
         ]
 
-        def remaining_cost(drone: object) -> int:
+        def remaining_cost(drone: Drone) -> int:
             index = drone.path_index + 1
             remaining_hubs = drone.path[index:]
-            return sum(self.graph.get_cost(hub) for hub in remaining_hubs)
+            return sum(self.graph.get_cost(hub) or 0 for hub in remaining_hubs)
 
         ready.sort(key=remaining_cost)
 
         return ready
 
-    def run(self) -> list:
+    def run(self) -> list[list[str]]:
         """Run the full simulation until all drones are finished."""
         max_turns = len(self.graph.adjacency) * len(self.drones) * 10
 
         while not all(drone.finished for drone in self.drones):
-            turn_moves = []
+            turn_moves: list[str] = []
 
             landed = self.resolve_arrivals(turn_moves)
             zone_occupancy = self.zone_occupancy()
             link_occupancy = self.link_occupancy()
 
             for drone in self.get_ready_drones(landed):
-                self.try_move(drone, zone_occupancy, link_occupancy,
-                              turn_moves)
+                self.try_move(
+                    drone, zone_occupancy, link_occupancy, turn_moves
+                )
             self.turns.append(turn_moves)
 
             if len(self.turns) > max_turns:

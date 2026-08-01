@@ -1,8 +1,10 @@
 """Pygame visualization for the fly-in simulation."""
 
 import math
-import pygame
 import random
+from typing import Any
+
+import pygame
 
 BACKGROUND_COLOR = (12, 12, 16)
 PANEL_COLOR = (20, 20, 26)
@@ -24,9 +26,9 @@ class Visualization:
 
     def __init__(
         self,
-        graph: object,
-        drones: list,
-        turns: list,
+        graph: Any,
+        drones: list[Any],
+        turns: list[list[str]],
         width: int = 1600,
         height: int = 950,
         turn_duration: float = 1.0,
@@ -80,9 +82,9 @@ class Visualization:
             pygame.draw.circle(surface, color, (x, y), radius)
         return surface
 
-    def get_hub_coordinates(self) -> dict:
+    def get_hub_coordinates(self) -> dict[str, tuple[int, int]]:
         """Return the coordinates for the graph hubs."""
-        coords = {
+        coords: dict[str, tuple[int, int]] = {
             self.graph.start: (
                 self.graph.start_data["x"],
                 self.graph.start_data["y"],
@@ -96,7 +98,7 @@ class Visualization:
             coords[hub["name"]] = (hub["x"], hub["y"])
         return coords
 
-    def compute_node_positions(self) -> dict:
+    def compute_node_positions(self) -> dict[str, tuple[float, float]]:
         """Compute the node positions used for rendering."""
         coords = self.get_hub_coordinates()
 
@@ -124,7 +126,7 @@ class Visualization:
 
         return positions
 
-    def parse_move(self, move_text: str) -> tuple:
+    def parse_move(self, move_text: str) -> tuple[int, str, Any]:
         """Parse a move string into a visualization event."""
         body = move_text[1:]
         parts = body.split("-")
@@ -135,7 +137,11 @@ class Visualization:
             return drone_id, "direct", hubs[0]
         return drone_id, "start_transit", (hubs[0], hubs[1])
 
-    def advance_drone_state(self, state: dict, event: tuple) -> tuple:
+    def advance_drone_state(
+        self,
+        state: dict[str, Any],
+        event: tuple[str, Any] | None,
+    ) -> tuple[Any, Any, float, float]:
         # NOTE : tzadt
         if state["transit_to"] is not None:
             if state["transit_elapsed"] >= state["transit_total"]:
@@ -166,8 +172,10 @@ class Visualization:
             from_hub, to_hub = data
 
             # NOTE : tzadt
-            if (state["transit_from"] == from_hub) and (state["transit_to"]
-                                                        == to_hub):
+            if (
+                (state["transit_from"] == from_hub)
+                and (state["transit_to"] == to_hub)
+            ):
                 return self.advance_without_event(state)
 
             total_turns = self.graph.get_cost(to_hub) or 1
@@ -178,7 +186,11 @@ class Visualization:
             end_fraction = min(1.0 / total_turns, 1.0)
             return from_hub, to_hub, 0.0, end_fraction
 
-    def advance_without_event(self, state: dict) -> tuple:
+        return state["hub"], state["hub"], 0.0, 0.0
+
+    def advance_without_event(
+        self, state: dict[str, Any]
+    ) -> tuple[Any, Any, float, float]:
         """Advance the drone state when no move event occurs."""
         if state["transit_to"] is None:
             return state["hub"], state["hub"], 0.0, 0.0
@@ -198,10 +210,10 @@ class Visualization:
 
         return from_hub, to_hub, start_fraction, end_fraction
 
-    def build_schedule(self) -> dict:
+    def build_schedule(self) -> dict[int, list[tuple[Any, Any, float, float]]]:
         """Build the per-drone transition schedule for visualization."""
-        schedule = {}
-        state = {}
+        schedule: dict[int, list[tuple[Any, Any, float, float]]] = {}
+        state: dict[int, dict[str, Any]] = {}
 
         for drone in self.drones:
             state[drone.drone_id] = {
@@ -296,7 +308,10 @@ class Visualization:
         index = min(self.current_turn, len(entries) - 1)
         from_hub, to_hub, start_fraction, end_fraction = entries[index]
 
-        fraction = start_fraction + self.turn_progress * (end_fraction - start_fraction) # noqa
+        fraction = (
+            start_fraction
+            + self.turn_progress * (end_fraction - start_fraction)
+        )
         fraction = max(0.0, min(fraction, 1.0))
 
         from_pos = self.node_positions[from_hub]
@@ -310,7 +325,9 @@ class Visualization:
         # self.screen.fill(BACKGROUND_COLOR)
         self.screen.blit(self.starfield_surface, (0, 0))
 
-    def hexagon_points(self, center: tuple, radius: float) -> list:
+    def hexagon_points(
+        self, center: tuple[float, float], radius: float
+    ) -> list[tuple[float, float]]:
         """Compute the points for a hexagon around the given center."""
         points = []
         for i in range(6):
@@ -336,7 +353,7 @@ class Visualization:
                 pygame.draw.line(self.screen,
                                  LINE_COLOR, start_pos, end_pos, 2)
 
-    def get_hub_color(self, hub_name: str) -> object:
+    def get_hub_color(self, hub_name: str) -> Any:
         """Return the explicit color configured for a hub, if any."""
         if hub_name == self.graph.start:
             return self.graph.start_data.get("color")
@@ -347,7 +364,7 @@ class Visualization:
                 return hub.get("color")
         return None
 
-    def get_node_color(self, hub_name: str, zone: str) -> object:
+    def get_node_color(self, hub_name: str, zone: str) -> Any:
         """Return the display color used for a hub."""
         explicit_color = self.get_hub_color(hub_name)
         if explicit_color:
@@ -382,9 +399,9 @@ class Visualization:
                 )
                 self.screen.blit(tag, tag_rect)
 
-    def group_drone_positions(self) -> dict:
+    def group_drone_positions(self) -> dict[tuple[int, int], list[int]]:
         """Group drones by nearby screen coordinates."""
-        groups = {}
+        groups: dict[tuple[int, int], list[int]] = {}
         for drone in self.drones:
             x, y = self.get_drone_position(drone.drone_id)
             bucket = (round(x / 12), round(y / 12))
@@ -429,9 +446,11 @@ class Visualization:
         _, to_hub, _, end_fraction = entries[index]
         drone = next(d for d in self.drones if d.drone_id == drone_id)
         at_last_turn = index == len(entries) - 1
-        return (to_hub == drone.path[-1]
-                and end_fraction >= 1.0
-                and at_last_turn)
+        return (
+            to_hub == drone.path[-1]
+            and end_fraction >= 1.0
+            and at_last_turn
+        )
 
     def draw_turn(self) -> None:
         """Draw the current turn and status in the sidebar."""

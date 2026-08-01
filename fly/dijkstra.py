@@ -1,30 +1,40 @@
 """Shortest-path utilities for the drone routing project."""
 
+from typing import Any
+
 
 class Dijkstra:
     """Solve shortest paths over the graph structure."""
 
-    def __init__(self, graph: object) -> None:
+    def __init__(self, graph: Any) -> None:
         """Initialize the solver with a graph instance."""
         self.graph = graph
 
-    def initialize(self, source: str) -> tuple:
+    def initialize(
+        self, source: str
+    ) -> tuple[
+        dict[str, tuple[float, float]],
+        dict[str, str | None],
+        set[str],
+    ]:
         """Create the initial distance, previous, and visited state."""
-        distance = {}
-        previous = {}
-        visited = set()
+        distance: dict[str, tuple[float, float]] = {}
+        previous: dict[str, str | None] = {}
+        visited: set[str] = set()
 
         for hub in self.graph.adjacency:
             distance[hub] = (float("inf"), float("inf"))
             previous[hub] = None
 
-        distance[source] = (0, 0)
+        distance[source] = (0.0, 0.0)
 
         return distance, previous, visited
 
-    def get_min_node(self, distance: dict, visited: set) -> object:
+    def get_min_node(
+        self, distance: dict[str, tuple[float, float]], visited: set[str]
+    ) -> str | None:
         """Return the unvisited node with the smallest known distance."""
-        min_node = None
+        min_node: str | None = None
 
         for hub in distance:
             if hub in visited:
@@ -35,7 +45,9 @@ class Dijkstra:
 
         return min_node
 
-    def shortest_path(self, source: str) -> tuple:
+    def shortest_path(
+        self, source: str
+    ) -> tuple[dict[str, tuple[float, float]], dict[str, str | None]]:
         """Compute the shortest path information from the given source."""
         distance, previous, visited = self.initialize(source)
 
@@ -45,10 +57,12 @@ class Dijkstra:
                 break
             visited.add(current)
             for neighbor in self.graph.adjacency[current]:
-                hub = neighbor["to"]
+                hub = str(neighbor["to"])
                 cost = neighbor["cost"]
 
                 if hub in visited:
+                    continue
+                if cost is None:
                     continue
 
                 priority_score = distance[current][1]
@@ -56,7 +70,10 @@ class Dijkstra:
                 if self.graph.get_zone(hub) == "priority":
                     priority_score -= 1
 
-                new_distance = (distance[current][0] + cost, priority_score)
+                new_distance = (
+                    distance[current][0] + float(cost),
+                    priority_score,
+                )
 
                 if new_distance < distance[hub]:
                     distance[hub] = new_distance
@@ -64,19 +81,22 @@ class Dijkstra:
 
         return distance, previous
 
-    def get_path(self, source: object = None) -> object:
+    def get_path(
+        self, source: str | None = None
+    ) -> tuple[list[str], float] | None:
         """Return a path from the source to the graph end node."""
         if source is None:
             source = self.graph.start
 
         distance, previous = self.shortest_path(source)
 
-        path = []
-        current = self.graph.end
+        path: list[str] = []
+        current: str | None = self.graph.end
 
         while current is not None:
             path.append(current)
-            current = previous[current]
+            previous_value = previous[current]
+            current = previous_value
 
         path.reverse()
 

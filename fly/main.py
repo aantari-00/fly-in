@@ -45,8 +45,8 @@ def main() -> None:
 
     for i, turn in enumerate(turns, start=1):
         print(f"Turn {i}: {' '.join(turn)}")
-    view = Visualization(graph, drones, turns, turn_duration=0.3)
-    view.run()
+    # view = Visualization(graph, drones, turns, turn_duration=0.3)
+    # view.run()
     return
 
 
