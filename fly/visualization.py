@@ -63,13 +63,14 @@ class Visualization:
         self.paused = False
         self.running = True
         self.status = "Running" if self.turns else "Finished"
-        self.starfield_surface = self.generate_starfield(self.width, self.height)
+        self.starfield_surface = self.generate_starfield(self.width,
+                                                         self.height)
 
     # NOTE : zdnaha
     def generate_starfield(self, width: int, height: int) -> pygame.Surface:
         surface = pygame.Surface((width, height))
         surface.fill(BACKGROUND_COLOR)
-        num_stars = (width * height) // 2500 
+        num_stars = (width * height) // 2500
         for _ in range(num_stars):
             x = random.randint(0, width)
             y = random.randint(0, height)
@@ -135,7 +136,6 @@ class Visualization:
         return drone_id, "start_transit", (hubs[0], hubs[1])
 
     def advance_drone_state(self, state: dict, event: tuple) -> tuple:
-        """Advance the state of one drone for a turn (with anti-teleport fix)."""
         # NOTE : tzadt
         if state["transit_to"] is not None:
             if state["transit_elapsed"] >= state["transit_total"]:
@@ -155,7 +155,7 @@ class Visualization:
                 return self.advance_without_event(state)
 
             if state["hub"] == data and state["transit_to"] is None:
-                 return state["hub"], state["hub"], 0.0, 0.0
+                return state["hub"], state["hub"], 0.0, 0.0
             from_hub = state["hub"]
             to_hub = data
             state["hub"] = to_hub
@@ -166,7 +166,8 @@ class Visualization:
             from_hub, to_hub = data
 
             # NOTE : tzadt
-            if state["transit_from"] == from_hub and state["transit_to"] == to_hub:
+            if (state["transit_from"] == from_hub) and (state["transit_to"]
+                                                        == to_hub):
                 return self.advance_without_event(state)
 
             total_turns = self.graph.get_cost(to_hub) or 1
@@ -250,7 +251,9 @@ class Visualization:
                     (self.width, self.height), pygame.RESIZABLE
                 )
                 self.node_positions = self.compute_node_positions()
-                self.starfield_surface = self.generate_starfield(self.width, self.height)
+                self.starfield_surface = self.generate_starfield(
+                    self.width, self.height
+                )
 
             elif event.type == pygame.KEYDOWN:
                 self.handle_key(event.key)
@@ -293,7 +296,7 @@ class Visualization:
         index = min(self.current_turn, len(entries) - 1)
         from_hub, to_hub, start_fraction, end_fraction = entries[index]
 
-        fraction = start_fraction + self.turn_progress * (end_fraction - start_fraction)
+        fraction = start_fraction + self.turn_progress * (end_fraction - start_fraction) # noqa
         fraction = max(0.0, min(fraction, 1.0))
 
         from_pos = self.node_positions[from_hub]
@@ -330,7 +333,8 @@ class Visualization:
 
                 start_pos = self.apply_zoom(self.node_positions[hub_name])
                 end_pos = self.apply_zoom(self.node_positions[other])
-                pygame.draw.line(self.screen, LINE_COLOR, start_pos, end_pos, 2)
+                pygame.draw.line(self.screen,
+                                 LINE_COLOR, start_pos, end_pos, 2)
 
     def get_hub_color(self, hub_name: str) -> object:
         """Return the explicit color configured for a hub, if any."""
@@ -405,7 +409,8 @@ class Visualization:
 
                 drone = next(d for d in self.drones if d.drone_id == drone_id)
                 color = (
-                    FINISHED_COLOR if self.drone_is_finished(drone_id) else DRONE_COLOR
+                    FINISHED_COLOR if self.drone_is_finished(drone_id)
+                    else DRONE_COLOR
                 )
                 pygame.draw.circle(self.screen, color, (x, y), drone_radius)
                 pygame.draw.circle(
@@ -424,7 +429,9 @@ class Visualization:
         _, to_hub, _, end_fraction = entries[index]
         drone = next(d for d in self.drones if d.drone_id == drone_id)
         at_last_turn = index == len(entries) - 1
-        return to_hub == drone.path[-1] and end_fraction >= 1.0 and at_last_turn
+        return (to_hub == drone.path[-1]
+                and end_fraction >= 1.0
+                and at_last_turn)
 
     def draw_turn(self) -> None:
         """Draw the current turn and status in the sidebar."""
@@ -476,7 +483,8 @@ class Visualization:
         ]
         for i, line in enumerate(controls):
             surface = self.small_font.render(line, True, DIM_TEXT_COLOR)
-            self.screen.blit(surface, (panel_x + 24, self.height - 100 + i * 22))
+            self.screen.blit(surface,
+                             (panel_x + 24, self.height - 100 + i * 22))
 
     def draw(self) -> None:
         """Render the complete visualization frame."""

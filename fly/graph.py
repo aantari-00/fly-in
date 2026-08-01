@@ -74,7 +74,9 @@ class Graph:
             hub1 = conn["from_zone"]
             hub2 = conn["to_zone"]
 
-            if self.get_zone(hub1) == "blocked" or self.get_zone(hub2) == "blocked":
+            if self.get_zone(
+                hub1
+            ) == "blocked" or self.get_zone(hub2) == "blocked":
                 continue
 
             cost_to_hub2 = self.get_cost(hub2)

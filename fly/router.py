@@ -36,14 +36,16 @@ class Router:
                 n_path, _ = new_path
                 total_path = root_path[:-1] + n_path
                 total_cost = self.graph.path_cost(total_path)
-                self.add_candidate(candidates, accepted, total_path, total_cost)
+                self.add_candidate(candidates, accepted, total_path,
+                                   total_cost)
 
             if not candidates:
                 break
 
             candidates.sort(key=lambda x: x[1])
             accepted.append(candidates.pop(0))
-        path_cost = [(path, cost) for path, cost in accepted if cost == first[1]]
+        path_cost = [(path, cost) for path, cost in accepted
+                     if cost == first[1]]
         if not path_cost:
             return accepted
 

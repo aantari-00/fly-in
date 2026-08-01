@@ -122,7 +122,8 @@ class Simulation:
             link_occupancy = self.link_occupancy()
 
             for drone in self.get_ready_drones(landed):
-                self.try_move(drone, zone_occupancy, link_occupancy, turn_moves)
+                self.try_move(drone, zone_occupancy, link_occupancy,
+                              turn_moves)
             self.turns.append(turn_moves)
 
             if len(self.turns) > max_turns:
