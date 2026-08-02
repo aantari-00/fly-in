@@ -110,7 +110,7 @@ class Graph:
     def remove_edge(
         self, hub1: str, hub2: str
     ) -> list[tuple[str, AdjacencyEntry]]:
-        """Remove the edge between two hubs from the graph."""
+        """Remove the edge b etween two hubs from the graph."""
         removed: list[tuple[str, AdjacencyEntry]] = []
         for entry in list(self.adjacency[hub1]):
             if entry["to"] == hub2:

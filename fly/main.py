@@ -1,5 +1,3 @@
-"""Entry point for running the fly-in simulation."""
-
 from parser import parse_map
 from graph import Graph
 from router import Router
@@ -24,6 +22,8 @@ def main() -> None:
         print("Usage: python main.py <map_file>")
         return
     data = parse_map(sys.argv[1])
+    print(data)
+    print()
     if data is None:
         print("Error parsing map")
         return
@@ -33,20 +33,19 @@ def main() -> None:
     router = Router(graph)
     # path
     paths = router.find_paths()
-    print(len(paths))
     if not paths:
         print("No path found")
         return
 
     drones = router.assign_drones(paths, graph.nb_drones)
     simulation = Simulation(graph, drones)
+    print("\033[H\033[J", end="\n")
     turns = simulation.run()
-    print(turns)
 
     for i, turn in enumerate(turns, start=1):
         print(f"Turn {i}: {' '.join(turn)}")
-    # view = Visualization(graph, drones, turns, turn_duration=0.3)
-    # view.run()
+    view = Visualization(graph, drones, turns, turn_duration=0.3)
+    view.run()
     return
 
 

@@ -1,5 +1,3 @@
-"""Shortest-path utilities for the drone routing project."""
-
 from typing import Any
 
 
