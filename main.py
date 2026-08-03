@@ -22,8 +22,6 @@ def main() -> None:
         print("Usage: python main.py <map_file>")
         return
     data = parse_map(sys.argv[1])
-    print(data)
-    print()
     if data is None:
         print("Error parsing map")
         return

@@ -47,7 +47,7 @@ _HUB_RE = re.compile(
     r"(?:\s+\[(?P<metadata>.*)\])?\s*$"
 )
 _CONNECTION_RE = re.compile(
-    r"^connection\s*:\s*(?P<hub1>[^\s-]+)-(?P<hub2>[^\s\[\]-]+)"
+    r"^connection\s*:\s*(?P<hub1>[^\s-]+)-(?P<hub2>[^\s\-]+)"
     r"(?:\s+\[(?P<metadata>.*)\])?\s*$"
 )
 _INT_RE = re.compile(r"^[+-]?\d+$")
@@ -58,11 +58,11 @@ class MapReader:
 
     def __init__(self, filename: str) -> None:
         """Store the path of the file to read."""
-        self._filename = filename
+        self.filename = filename
 
     def statements(self) -> Iterator[tuple[int, str]]:
         """Yield (line_number, text) for every non-comment, non-blank line."""
-        with open(self._filename, "r", encoding="utf-8") as handle:
+        with open(self.filename, "r", encoding="utf-8") as handle:
             for line_no, raw_line in enumerate(handle, start=1):
                 text = raw_line.split("#", 1)[0].strip()
                 if text:
@@ -124,9 +124,9 @@ class StatementParser:
             raise MapSyntaxError(
                 f"Malformed 'nb_drones' declaration: '{text}'", line_no
             )
-        return StatementParser._parse_positive_int(
-            line_no, match.group("value"), "nb_drones"
-        )
+        return StatementParser._parse_positive_int(line_no,
+                                                   match.group("value"),
+                                                   "nb_drones")
 
     @staticmethod
     def parse_hub(line_no: int, text: str) -> tuple[str, dict[str, object]]:
@@ -138,8 +138,6 @@ class StatementParser:
 
         kind = match.group("kind")
         name = match.group("name")
-        # Zone (hub) names may use any character except dashes and
-        # whitespace: dashes are reserved as the connection separator.
         if "-" in name:
             raise MapValidationError(
                 f"Hub name '{name}' cannot contain a dash '-'", line_no
@@ -153,8 +151,13 @@ class StatementParser:
             line_no, match.group("metadata"), HUB_METADATA_KEYS, context
         )
         if kind in ("start_hub", "end_hub"):
-
-            metadata.pop("max_drones", None)
+            if "max_drones" in metadata:
+                nb_max_drones = StatementParser._parse_non_negative_int( # noqa
+                    line_no,
+                    str(metadata["max_drones"]),
+                    "max_drones",
+                )
+                metadata.pop("max_drones", None)
         StatementParser._validate_hub_metadata(line_no, name, metadata)
 
         hub: dict[str, object] = {"name": name, "x": x, "y": y}
@@ -185,7 +188,7 @@ class StatementParser:
 
         connection: dict[str, object] = {"from_zone": hub1, "to_zone": hub2}
         if "max_link_capacity" in metadata:
-            connection["max_link_capacity"] = StatementParser._parse_positive_int( # noqa
+            connection["max_link_capacity"] = StatementParser._parse_positive_int(  # noqa
                 line_no,
                 metadata["max_link_capacity"],
                 f"max_link_capacity for {context}",
@@ -255,6 +258,24 @@ class StatementParser:
                 f"{label} must be greater than 0, got {value}", line_no
             )
         return value
+
+    @staticmethod
+    def _parse_non_negative_int(line_no: int, value: str, field: str) -> int:
+        if not _INT_RE.match(value):
+            raise MapValidationError(
+                f"{field} must be an integer",
+                line_no,
+            )
+
+        number = int(value)
+
+        if number < 0:
+            raise MapValidationError(
+                f"{field} cannot be negative",
+                line_no,
+            )
+
+        return number
 
 
 class MapValidator:
