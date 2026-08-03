@@ -60,7 +60,7 @@ fly-in/
 │  └── challenger/
 ```
 
-## Installation
+## Instructions
 
 The project is intended to run with Python 3 and the dependencies listed in `requirements.txt`.
 
@@ -114,7 +114,7 @@ connection: loop_a-loop_b [max_link_capacity=2]
 
 The parser validates the file structure and returns `None` if the input cannot be parsed correctly.
 
-## Algorithms used
+## Algorithm Choices and Implementation Strategy
 
 ### Dijkstra shortest path
 
@@ -224,4 +224,16 @@ This project is based on several algorithms and technologies. The following reso
   https://www.youtube.com/playlist?list=PLzMcBGfZo4-lp3jAExUCewBfMx3UZFkh5
 
 
-## AI usage
+## AI Usage
+
+Artificial intelligence was used as a learning and assistance tool during the development of this project.
+
+It was used to:
+
+* Recommend documentation, tutorials, and videos to better understand algorithms such as Dijkstra's and Yen's algorithm, as well as Pygame.
+* Clarify the project requirements and explain parts of the subject that were difficult to understand.
+* Explain Python concepts, algorithms, and data structures through examples.
+* Help identify and understand the causes of specific bugs encountered during development.
+* Suggest test cases and example inputs to verify different parts of the implementation.
+
+The project architecture, implementation, integration, testing, and final validation were completed by the project authors.
