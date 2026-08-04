@@ -11,12 +11,7 @@ import sys
 def main() -> None:
     """Run the parsing, routing, simulation, and visualization pipeline."""
 
-    def handler(signum: int, frame: FrameType | None) -> None:
-        if signum == signal.SIGQUIT:
-            sys.exit(1)
 
-    signal.signal(signal.SIGINT, handler)
-    signal.signal(signal.SIGQUIT, handler)
     # parsing
     if len(sys.argv) != 2:
         print("Usage: python main.py <map_file>")
@@ -48,4 +43,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nSimulation interrupted by user.")
+        sys.exit(0)

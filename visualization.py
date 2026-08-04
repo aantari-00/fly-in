@@ -1,9 +1,6 @@
-"""Pygame visualization for the fly-in simulation."""
-
 import math
 import random
 from typing import Any
-
 import pygame
 
 BACKGROUND_COLOR = (12, 12, 16)
@@ -19,6 +16,13 @@ ZONE_COLORS = {
     "priority": (235, 200, 90),
     "normal": (235, 235, 235),
 }
+
+# Approximate real-world seconds a drone should rest at a hub before
+# starting its next move. run() advances animation time using
+# clock.tick(fps) / 3000.0, so one "duration unit" used throughout this
+# class equals 3 real wall-clock seconds; dividing by 3 here converts the
+# desired real-world pause into that same unit.
+HUB_PAUSE_SECONDS = 1.0
 
 
 class Visualization:
@@ -59,12 +63,20 @@ class Visualization:
         self.node_positions = self.compute_node_positions()
         self.schedule = self.build_schedule()
 
-        self.current_turn = 0
-        self.turn_timer = 0.0
-        self.turn_progress = 0.0
+        # One duration unit equals 3 real seconds (see run()); dividing
+        # HUB_PAUSE_SECONDS by 3 keeps the pause close to real time
+        # regardless of turn_duration.
+        self.hub_pause_duration = HUB_PAUSE_SECONDS / 3.0
+        self.timeline = self.build_animation_timeline()
+        self.drone_playback = self.init_drone_playback()
+
         self.paused = False
         self.running = True
-        self.status = "Running" if self.turns else "Finished"
+        self.status = (
+            "Running"
+            if any(self.timeline[drone.drone_id] for drone in self.drones)
+            else "Finished"
+        )
         self.starfield_surface = self.generate_starfield(self.width,
                                                          self.height)
 
@@ -236,6 +248,90 @@ class Visualization:
                 schedule[drone.drone_id].append(entry)
         return schedule
 
+    def build_animation_timeline(
+        self,
+    ) -> dict[int, list[dict[str, Any]]]:
+        """Build a per-drone list of animation segments.
+
+        This turns the turn-locked schedule (one entry per simulation
+        turn) into a compact, independent-per-drone sequence of "move"
+        and "wait" segments. Consecutive turn entries that share the same
+        (from, to) pair are collapsed into a single move segment, so a
+        multi-turn transit (e.g. into a restricted zone, which costs 2
+        simulation turns) plays out as one continuous, proportionally
+        slower glide instead of two turn-locked hops. A "wait" segment
+        equal to HUB_PAUSE_SECONDS is inserted after every arrival that
+        isn't the drone's final destination, so drones visibly rest at
+        each hub before continuing. None of this changes simulation
+        output -- self.turns and self.schedule are untouched.
+        """
+        timeline: dict[int, list[dict[str, Any]]] = {}
+
+        for drone in self.drones:
+            entries = self.schedule[drone.drone_id]
+            final_hub = drone.path[-1]
+            segments: list[dict[str, Any]] = []
+
+            i = 0
+            n = len(entries)
+            while i < n:
+                from_hub, to_hub, _, _ = entries[i]
+
+                if from_hub == to_hub:
+                    hub = from_hub
+                    run_len = 0
+                    while i < n and entries[i][0] == entries[i][1]:
+                        run_len += 1
+                        i += 1
+                    segments.append(
+                        {
+                            "type": "wait",
+                            "hub": hub,
+                            "duration": run_len * self.turn_duration,
+                        }
+                    )
+                else:
+                    move_from, move_to = from_hub, to_hub
+                    run_len = 0
+                    while (
+                        i < n
+                        and entries[i][0] == move_from
+                        and entries[i][1] == move_to
+                    ):
+                        run_len += 1
+                        i += 1
+                    segments.append(
+                        {
+                            "type": "move",
+                            "from": move_from,
+                            "to": move_to,
+                            # A hop spanning several simulation turns
+                            # (higher traversal cost, e.g. a restricted
+                            # zone) keeps its proportionally longer
+                            # duration here.
+                            "duration": run_len * self.turn_duration,
+                        }
+                    )
+                    if move_to != final_hub:
+                        segments.append(
+                            {
+                                "type": "wait",
+                                "hub": move_to,
+                                "duration": self.hub_pause_duration,
+                            }
+                        )
+
+            timeline[drone.drone_id] = segments
+
+        return timeline
+
+    def init_drone_playback(self) -> dict[int, dict[str, Any]]:
+        """Return a fresh per-drone animation playback state."""
+        return {
+            drone.drone_id: {"segment_index": 0, "segment_elapsed": 0.0}
+            for drone in self.drones
+        }
+
     def handle_zoom(self, wheel_direction: int) -> None:
         """Adjust the zoom level in response to wheel input."""
         self.zoom += wheel_direction * self.zoom_step
@@ -278,49 +374,72 @@ class Visualization:
         elif key == pygame.K_SPACE:
             self.paused = not self.paused
         elif key == pygame.K_s:
-            self.current_turn = 0
-            self.turn_timer = 0.0
+            self.drone_playback = self.init_drone_playback()
             self.paused = False
-            self.status = "Running" if self.turns else "Finished"
+            self.status = (
+                "Running"
+                if any(
+                    self.timeline[drone.drone_id] for drone in self.drones
+                )
+                else "Finished"
+            )
 
     def update(self, dt: float) -> None:
-        """Advance the animation state by the elapsed time."""
+        """Advance each drone's animation state by the elapsed time."""
         if self.paused or self.status == "Finished":
             return
 
-        self.turn_timer += dt
-        self.turn_progress = min(self.turn_timer / self.turn_duration, 1.0)
+        all_finished = True
+        for drone in self.drones:
+            segments = self.timeline[drone.drone_id]
+            state = self.drone_playback[drone.drone_id]
 
-        if self.turn_timer >= self.turn_duration:
-            self.turn_timer = 0.0
-            self.turn_progress = 0.0
-            if self.current_turn < len(self.turns) - 1:
-                self.current_turn += 1
-            else:
-                self.status = "Finished"
-                self.turn_progress = 1.0
+            if state["segment_index"] >= len(segments):
+                continue
+
+            all_finished = False
+            state["segment_elapsed"] += dt
+
+            while (
+                state["segment_index"] < len(segments)
+                and state["segment_elapsed"]
+                >= segments[state["segment_index"]]["duration"]
+            ):
+                state["segment_elapsed"] -= segments[
+                    state["segment_index"]
+                ]["duration"]
+                state["segment_index"] += 1
+
+        if all_finished:
+            self.status = "Finished"
 
     def get_drone_position(self, drone_id: int) -> tuple:
         """Return the current on-screen position for a drone."""
-        entries = self.schedule[drone_id]
-        index = min(self.current_turn, len(entries) - 1)
-        from_hub, to_hub, start_fraction, end_fraction = entries[index]
+        segments = self.timeline[drone_id]
+        if not segments:
+            drone = next(d for d in self.drones if d.drone_id == drone_id)
+            return self.apply_zoom(self.node_positions[drone.path[0]])
 
-        fraction = (
-            start_fraction
-            + self.turn_progress * (end_fraction - start_fraction)
-        )
-        fraction = max(0.0, min(fraction, 1.0))
+        state = self.drone_playback[drone_id]
+        finished = state["segment_index"] >= len(segments)
+        index = len(segments) - 1 if finished else state["segment_index"]
+        segment = segments[index]
 
-        from_pos = self.node_positions[from_hub]
-        to_pos = self.node_positions[to_hub]
+        if segment["type"] == "wait":
+            return self.apply_zoom(self.node_positions[segment["hub"]])
+
+        duration = max(segment["duration"], 1e-6)
+        elapsed = segment["duration"] if finished else state["segment_elapsed"]
+        fraction = max(0.0, min(elapsed / duration, 1.0))
+
+        from_pos = self.node_positions[segment["from"]]
+        to_pos = self.node_positions[segment["to"]]
         x = from_pos[0] + (to_pos[0] - from_pos[0]) * fraction
         y = from_pos[1] + (to_pos[1] - from_pos[1]) * fraction
         return self.apply_zoom((x, y))
 
     def draw_background(self) -> None:
         """Draw the background color for the visualization."""
-        # self.screen.fill(BACKGROUND_COLOR)
         self.screen.blit(self.starfield_surface, (0, 0))
 
     def hexagon_points(
@@ -438,24 +557,24 @@ class Visualization:
                 self.screen.blit(tag, tag.get_rect(center=(x, y)))
 
     def drone_is_finished(self, drone_id: int) -> bool:
-        """Return whether the given drone has reached its final state."""
-        entries = self.schedule[drone_id]
-        index = min(self.current_turn, len(entries) - 1)
-        _, to_hub, _, end_fraction = entries[index]
-        drone = next(d for d in self.drones if d.drone_id == drone_id)
-        at_last_turn = index == len(entries) - 1
-        return (
-            to_hub == drone.path[-1]
-            and end_fraction >= 1.0
-            and at_last_turn
-        )
+        """Return whether the given drone has finished its animation."""
+        segments = self.timeline[drone_id]
+        state = self.drone_playback[drone_id]
+        return state["segment_index"] >= len(segments)
 
     def draw_turn(self) -> None:
-        """Draw the current turn and status in the sidebar."""
+        """Draw the current progress and status in the sidebar."""
         panel_x = self.width - self.sidebar_width
-        turn_text = f"Turn:{self.current_turn + 1} / {max(len(self.turns), 1)}"
-        turn_surface = self.label_font.render(turn_text, True, TEXT_COLOR)
-        self.screen.blit(turn_surface, (panel_x + 24, 96))
+        landed = sum(
+            1
+            for drone in self.drones
+            if self.drone_is_finished(drone.drone_id)
+        )
+        progress_text = f"Landed: {landed} / {len(self.drones)}"
+        progress_surface = self.label_font.render(
+            progress_text, True, TEXT_COLOR
+        )
+        self.screen.blit(progress_surface, (panel_x + 24, 96))
 
         status_surface = self.label_font.render(
             f"Status: {self.status}", True, TEXT_COLOR
@@ -479,15 +598,6 @@ class Visualization:
         drones_text = f"nb_drones: {len(self.drones)}"
         drones_surface = self.label_font.render(drones_text, True, TEXT_COLOR)
         self.screen.blit(drones_surface, (panel_x + 24, 170))
-
-        # finished_count = sum(
-        #     1 for drone in self.drones
-        #     if self.drone_is_finished(drone.drone_id)
-        # )
-        # landed_text = f"landed: {finished_count} / {len(self.drones)}"
-        # landed_surface = self.small_font.render(
-        #     landed_text, True, DIM_TEXT_COLOR)
-        # self.screen.blit(landed_surface, (panel_x + 24, 196))
 
         controls_title = self.label_font.render("Controls", True, TEXT_COLOR)
         self.screen.blit(controls_title, (panel_x + 24, self.height - 130))

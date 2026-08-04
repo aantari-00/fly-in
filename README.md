@@ -32,7 +32,12 @@ The project follows a modular pipeline:
 - `visualization.py` renders the process in a window.
 - `main.py` connects the modules and starts the workflow.
 
+### Workflow
+
+```text
+map.txt → parser.py → graph.py → router.py → simulation.py → visualization.py
 The main runtime flow is:
+```
 
 ```text
 parse map -> build graph -> generate routes -> assign drones -> simulate -> visualize.

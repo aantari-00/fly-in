@@ -151,13 +151,7 @@ class StatementParser:
             line_no, match.group("metadata"), HUB_METADATA_KEYS, context
         )
         if kind in ("start_hub", "end_hub"):
-            if "max_drones" in metadata:
-                nb_max_drones = StatementParser._parse_non_negative_int( # noqa
-                    line_no,
-                    str(metadata["max_drones"]),
-                    "max_drones",
-                )
-                metadata.pop("max_drones", None)
+            metadata.pop("max_drones", None)
         StatementParser._validate_hub_metadata(line_no, name, metadata)
 
         hub: dict[str, object] = {"name": name, "x": x, "y": y}
@@ -258,22 +252,6 @@ class StatementParser:
                 f"{label} must be greater than 0, got {value}", line_no
             )
         return value
-
-    @staticmethod
-    def _parse_non_negative_int(line_no: int, value: str, field: str) -> int:
-        if not _INT_RE.match(value):
-            raise MapValidationError(
-                f"{field} must be an integer",
-                line_no,
-            )
-
-        number = int(value)
-
-        if number < 0:
-            raise MapValidationError(
-                f"{field} cannot be negative",
-                line_no,
-            )
 
         return number
 
