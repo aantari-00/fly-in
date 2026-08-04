@@ -253,8 +253,6 @@ class StatementParser:
             )
         return value
 
-        return number
-
 
 class MapValidator:
     """Accumulate parsed statements and enforce the map's business rules."""

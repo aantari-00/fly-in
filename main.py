@@ -3,14 +3,11 @@ from graph import Graph
 from router import Router
 from simulation import Simulation
 from visualization import Visualization
-from types import FrameType
-import signal
 import sys
 
 
 def main() -> None:
     """Run the parsing, routing, simulation, and visualization pipeline."""
-
 
     # parsing
     if len(sys.argv) != 2:
