@@ -2,6 +2,10 @@ import math
 import random
 from typing import Any
 import pygame
+from typing import Literal
+
+MoveKind = Literal["direct", "start_transit"]
+MoveData = str | tuple[str, str]
 
 BACKGROUND_COLOR = (12, 12, 16)
 PANEL_COLOR = (20, 20, 26)
@@ -108,7 +112,7 @@ class Visualization:
         self.zoom_center = (margin + play_width / 2, margin + play_height / 2)
         return positions
 
-    def parse_move(self, move_text: str) -> tuple[int, str, Any]:
+    def parse_move(self, move_text: str) -> tuple[int, MoveKind, MoveData]:
         """Parse a move string into (drone_id, kind, data)."""
         raw_id, *hubs = move_text[1:].split("-")
         drone_id = int(raw_id)
@@ -116,11 +120,11 @@ class Visualization:
             return drone_id, "direct", hubs[0]
         return drone_id, "start_transit", (hubs[0], hubs[1])
 
-    def per_turn_events(self) -> list[dict[int, tuple[str, Any]]]:
+    def per_turn_events(self) -> list[dict[int, tuple[MoveKind, MoveData]]]:
         """Return, per turn, a dict of drone_id -> (kind, data)."""
-        events_by_turn = []
+        events_by_turn: list[dict[int, tuple[MoveKind, MoveData]]] = []
         for turn_moves in self.turns:
-            events = {}
+            events: dict[int, tuple[MoveKind, MoveData]] = {}
             for move in turn_moves:
                 drone_id, kind, data = self.parse_move(move)
                 events[drone_id] = (kind, data)
@@ -131,47 +135,32 @@ class Visualization:
         self,
         drone_id: int,
         start_hub: str,
-        events_by_turn: list[dict[int, tuple[str, Any]]],
+        events_by_turn: list[dict[int, tuple[MoveKind, MoveData]]],
     ) -> list[tuple[str, str]]:
-        """Return the (from_hub, to_hub) pair the drone occupies each turn."""
-        hub = start_hub
-        transit: tuple[str, str, int, int] | None = None
+        hub: str = start_hub
+        transit: tuple[str, str] | None = None
         occupied: list[tuple[str, str]] = []
 
         for events in events_by_turn:
             event = events.get(drone_id)
-
-            if transit and event:
-                kind, data = event
-                if (kind == "direct" and data == transit[1]) or (
-                    kind == "start_transit" and data == transit[:2]
-                ):
-                    event = None
-
-            if event is None:
-                if transit:
-                    frm, to, total, elapsed = transit
-                    elapsed += 1
-                    occupied.append((frm, to))
-                    transit = None if elapsed >= total else (
-                        frm, to, total, elapsed)
-                    if transit is None:
-                        hub = to
-                else:
-                    occupied.append((hub, hub))
+            if transit is not None:
+                occupied.append(transit)
+                hub = transit[1]
+                transit = None
                 continue
-
+            if event is None:
+                occupied.append((hub, hub))
+                continue
             kind, data = event
             if kind == "direct":
+                assert isinstance(data, str)
                 occupied.append((hub, data))
                 hub = data
-                transit = None
-            else:  # start_transit
+            else:
+                assert isinstance(data, tuple)
                 frm, to = data
-                total = self.graph.get_cost(to) or 1
-                transit = (frm, to, total, 1)
                 occupied.append((frm, to))
-
+                transit = (frm, to)
         return occupied
 
     def encode_segments(
@@ -189,7 +178,8 @@ class Visualization:
 
             if frm == to:
                 segments.append(
-                    {"type": "wait", "hub": frm,
+                    {"type": "wait",
+                     "hub": frm,
                      "duration": run * self.turn_duration}
                 )
             else:
@@ -203,8 +193,9 @@ class Visualization:
                 )
                 if to != final_hub:
                     segments.append(
-                        {"type": "wait", "hub": to,
-                            "duration": self.hub_pause_duration}
+                        {"type": "wait",
+                         "hub": to,
+                         "duration": self.hub_pause_duration}
                     )
             i += run
         return segments
